@@ -1,0 +1,39 @@
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: eyeOjob
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./DB/eyeojob.sql:/docker-entrypoint-initdb.d/eyeojob.sql:ro
+
+  server:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.server
+    restart: unless-stopped
+    env_file:
+      - ./server/.env
+    environment:
+      DB_HOST: mysql
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mysql
+
+  client:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.client
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - server
+
+volumes:
+  mysql_data:

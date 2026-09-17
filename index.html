@@ -1,0 +1,1259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EyeOJob — Career Operating System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #07080b;
+    --bg-elevated: #0c0e14;
+    --bg-card: #111318;
+    --bg-card-hover: #161920;
+    --border: rgba(255,255,255,0.055);
+    --border-hover: rgba(255,255,255,0.11);
+    --text: #f4f4f5;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+    --accent: #6366f1;
+    --accent-soft: rgba(99,102,241,0.14);
+    --cyan: #22d3ee;
+    --purple: #a78bfa;
+    --orange: #fb923c;
+    --green: #34d399;
+    --rose: #fb7185;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { font-size: 15px; scroll-behavior: smooth; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 4px; }
+
+  /* ========== SIDEBAR ========== */
+  .sidebar {
+    position: fixed;
+    left: 0; top: 0; bottom: 0;
+    width: 232px;
+    background: var(--bg-elevated);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    z-index: 50;
+    transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .sidebar.collapsed { width: 64px; }
+  .sidebar.collapsed .nav-label,
+  .sidebar.collapsed .logo-text,
+  .sidebar.collapsed .user-info { 
+    opacity: 0; 
+    width: 0; 
+    overflow: hidden; 
+    pointer-events: none;
+  }
+
+  .sidebar-header {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 18px 16px;
+    border-bottom: 1px solid var(--border);
+    min-height: 60px;
+  }
+  .logo-mark {
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #6366f1 0%, #22d3ee 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+  .logo-text { 
+    font-weight: 600; 
+    font-size: 14.5px; 
+    letter-spacing: -0.025em; 
+    white-space: nowrap;
+    transition: opacity 0.2s;
+  }
+
+  .nav { 
+    flex: 1; 
+    padding: 10px 8px; 
+    display: flex; 
+    flex-direction: column; 
+    gap: 1px; 
+    overflow-y: auto;
+  }
+  .nav-item {
+    display: flex; 
+    align-items: center; 
+    gap: 11px;
+    padding: 8px 11px;
+    border-radius: 9px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.15s ease;
+  }
+  .nav-item:hover { 
+    background: rgba(255,255,255,0.035); 
+    color: var(--text); 
+  }
+  .nav-item.active { 
+    background: var(--accent-soft); 
+    color: #a5b4fc; 
+  }
+  .nav-icon { 
+    width: 17px; 
+    height: 17px; 
+    opacity: 0.8; 
+    flex-shrink: 0; 
+  }
+  .nav-label { 
+    white-space: nowrap; 
+    transition: opacity 0.2s;
+  }
+
+  .sidebar-footer {
+    padding: 12px 10px;
+    border-top: 1px solid var(--border);
+  }
+  .user-row {
+    display: flex; 
+    align-items: center; 
+    gap: 10px;
+    padding: 6px 7px;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .user-row:hover { background: rgba(255,255,255,0.035); }
+  .avatar {
+    width: 28px; height: 28px;
+    border-radius: 7px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11.5px; font-weight: 600; 
+    flex-shrink: 0;
+  }
+  .user-info { overflow: hidden; transition: opacity 0.2s; }
+  .user-name { font-size: 12.5px; font-weight: 500; }
+  .user-plan { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+  /* ========== MAIN ========== */
+  .main {
+    margin-left: 232px;
+    min-height: 100vh;
+    transition: margin-left 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .sidebar.collapsed ~ .main { margin-left: 64px; }
+
+  /* Header */
+  .header {
+    position: sticky; 
+    top: 0; 
+    z-index: 40;
+    height: 54px;
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between;
+    padding: 0 26px;
+    background: rgba(7,8,11,0.78);
+    backdrop-filter: blur(18px) saturate(1.4);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    border-bottom: 1px solid var(--border);
+  }
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .collapse-btn {
+    width: 30px; height: 30px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .collapse-btn:hover { 
+    border-color: var(--border-hover); 
+    color: var(--text); 
+    background: rgba(255,255,255,0.03);
+  }
+
+  .search-box { position: relative; width: 260px; }
+  .search-box input {
+    width: 100%;
+    height: 32px;
+    padding: 0 12px 0 32px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text);
+    font-size: 12.5px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .search-box input:focus { 
+    border-color: rgba(99,102,241,0.45); 
+    background: var(--bg-card-hover);
+  }
+  .search-box input::placeholder { color: var(--text-muted); }
+  .search-icon {
+    position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+    width: 14px; height: 14px; opacity: 0.35;
+    pointer-events: none;
+  }
+
+  .header-right { display: flex; align-items: center; gap: 7px; }
+
+  /* Live Sync */
+  .sync-btn {
+    display: flex; 
+    align-items: center; 
+    gap: 7px;
+    height: 32px;
+    padding: 0 11px;
+    border-radius: 8px;
+    border: 1px solid rgba(52,211,153,0.22);
+    background: rgba(52,211,153,0.07);
+    color: var(--green);
+    font-size: 12px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.15s;
+  }
+  .sync-btn:hover { background: rgba(52,211,153,0.12); }
+  .pulse-dot {
+    width: 6.5px; height: 6.5px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 0 0 rgba(52,211,153,0.55);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(52,211,153,0.5); }
+    70% { box-shadow: 0 0 0 6px rgba(52,211,153,0); }
+    100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); }
+  }
+  .sync-popover {
+    position: absolute;
+    top: calc(100% + 8px); 
+    right: 0;
+    width: 230px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 13px;
+    opacity: 0; 
+    visibility: hidden;
+    transform: translateY(5px);
+    transition: all 0.18s ease;
+    z-index: 60;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+  }
+  .sync-btn:hover .sync-popover { 
+    opacity: 1; 
+    visibility: visible; 
+    transform: translateY(0); 
+  }
+  .sync-row {
+    display: flex; 
+    justify-content: space-between;
+    font-size: 12px;
+    padding: 4.5px 0;
+  }
+  .sync-row span:first-child { color: var(--text-muted); }
+  .sync-now {
+    margin-top: 9px;
+    width: 100%;
+    height: 30px;
+    border-radius: 7px;
+    border: none;
+    background: var(--accent);
+    color: white;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .sync-now:hover { opacity: 0.88; }
+
+  .icon-btn {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    transition: all 0.15s;
+  }
+  .icon-btn:hover { 
+    border-color: var(--border-hover); 
+    color: var(--text); 
+    background: rgba(255,255,255,0.03); 
+  }
+  .notif-badge {
+    position: absolute; 
+    top: -3px; 
+    right: -3px;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--rose);
+    color: white;
+    font-size: 9px; 
+    font-weight: 600;
+    display: flex; 
+    align-items: center; 
+    justify-content: center;
+  }
+  .profile-btn {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    border: none;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: white;
+    font-size: 11.5px; 
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  /* ========== CONTENT ========== */
+  .content {
+    padding: 28px 26px 56px;
+    max-width: 1240px;
+  }
+
+  /* Fade-in */
+  .fade-in {
+    opacity: 0;
+    transform: translateY(14px);
+    animation: fadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  @keyframes fadeUp {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ========== 1. HERO ========== */
+  .hero {
+    display: grid;
+    grid-template-columns: 1.65fr 1fr;
+    gap: 16px;
+    margin-bottom: 26px;
+  }
+  .hero-main {
+    background: linear-gradient(155deg, #13161e 0%, #0d0f15 100%);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 26px 28px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-main::before {
+    content: '';
+    position: absolute;
+    top: -50%; right: -25%;
+    width: 340px; height: 340px;
+    background: radial-gradient(circle, rgba(99,102,241,0.11) 0%, transparent 68%);
+    pointer-events: none;
+  }
+  .greeting {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.035em;
+    margin-bottom: 5px;
+    position: relative;
+  }
+  .greeting-sub {
+    font-size: 13.5px;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+    position: relative;
+  }
+  .summary-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+  }
+  .summary-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 11px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.45;
+  }
+  .summary-list li strong { color: var(--text); font-weight: 500; }
+  .summary-dot {
+    width: 5.5px; height: 5.5px;
+    border-radius: 50%;
+    margin-top: 5.5px;
+    flex-shrink: 0;
+  }
+
+  .hero-side {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .health-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+    flex: 1;
+  }
+  .health-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 7px;
+  }
+  .health-score {
+    font-size: 38px;
+    font-weight: 700;
+    letter-spacing: -0.045em;
+    background: linear-gradient(135deg, #34d399 0%, #22d3ee 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+    margin-bottom: 5px;
+  }
+  .health-note {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+  }
+  .goal-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 20px;
+  }
+  .goal-header {
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    margin-bottom: 9px;
+  }
+  .goal-title { font-size: 12.5px; font-weight: 500; }
+  .goal-count { font-size: 12.5px; color: var(--text-secondary); }
+  .goal-count strong { color: var(--text); }
+  .progress-track {
+    height: 5px;
+    background: rgba(255,255,255,0.055);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 9px;
+  }
+  .progress-fill {
+    height: 100%;
+    width: 86%;
+    background: linear-gradient(90deg, #6366f1, #22d3ee);
+    border-radius: 3px;
+  }
+  .goal-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #a5b4fc;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font-family: inherit;
+    transition: color 0.15s;
+  }
+  .goal-cta:hover { color: #c7d2fe; }
+
+  /* ========== 2. TODAY'S FOCUS ========== */
+  .section-title {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 12px;
+  }
+  .focus-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 11px;
+    margin-bottom: 26px;
+  }
+  .focus-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    padding: 15px 16px;
+    transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    cursor: pointer;
+  }
+  .focus-card:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  }
+  .focus-icon {
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 11px;
+    font-size: 13px;
+  }
+  .focus-title { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
+  .focus-meta { font-size: 11.5px; color: var(--text-muted); }
+
+  /* ========== 3. TIMELINE + 4. APPLICATIONS ========== */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1.18fr;
+    gap: 16px;
+    margin-bottom: 26px;
+  }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 15px;
+    padding: 20px;
+  }
+  .card-header {
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .card-title { 
+    font-size: 14.5px; 
+    font-weight: 600; 
+    letter-spacing: -0.015em; 
+  }
+  .card-link {
+    font-size: 12px;
+    color: #a5b4fc;
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.15s;
+  }
+  .card-link:hover { color: #c7d2fe; }
+
+  /* Timeline */
+  .timeline { position: relative; padding-left: 18px; }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 4px; top: 5px; bottom: 5px;
+    width: 1.5px;
+    background: rgba(255,255,255,0.07);
+  }
+  .timeline-item {
+    position: relative;
+    padding-bottom: 16px;
+  }
+  .timeline-item:last-child { padding-bottom: 0; }
+  .timeline-dot {
+    position: absolute;
+    left: -18px; top: 4px;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    border: 2px solid var(--bg-card);
+  }
+  .timeline-time {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 1px;
+  }
+  .timeline-text {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .timeline-text strong { color: var(--text); font-weight: 500; }
+
+  /* Application cards */
+  .app-list { display: flex; flex-direction: column; gap: 6px; }
+  .app-item {
+    display: flex; 
+    align-items: center; 
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 11px;
+    border: 1px solid transparent;
+    transition: all 0.18s ease;
+    cursor: pointer;
+  }
+  .app-item:hover {
+    background: rgba(255,255,255,0.025);
+    border-color: var(--border);
+  }
+  .app-logo {
+    width: 36px; height: 36px;
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: 13px;
+    flex-shrink: 0;
+  }
+  .app-info { flex: 1; min-width: 0; }
+  .app-role { 
+    font-size: 13px; 
+    font-weight: 500; 
+    white-space: nowrap; 
+    overflow: hidden; 
+    text-overflow: ellipsis; 
+  }
+  .app-company { font-size: 11.5px; color: var(--text-muted); margin-top: 1px; }
+  .app-status {
+    font-size: 10.5px;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+  .app-open {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+  .app-item:hover .app-open { opacity: 1; color: #a5b4fc; }
+
+  /* ========== 5. AI COACH ========== */
+  .coach-section { margin-bottom: 26px; }
+  .coach-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 11px;
+  }
+  .coach-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    padding: 16px;
+    transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .coach-card:hover {
+    border-color: var(--border-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+  }
+  .coach-tag {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 9px;
+    display: inline-block;
+  }
+  .coach-text {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+  .coach-text strong { color: var(--text); font-weight: 500; }
+
+  /* ========== 6+7. ANALYTICS + PLATFORM ========== */
+  .analytics-row {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 16px;
+    margin-bottom: 26px;
+  }
+  .chart-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 9px;
+    height: 112px;
+    margin-top: 6px;
+  }
+  .bar-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+  }
+  .bar {
+    width: 100%;
+    border-radius: 4px 4px 2px 2px;
+    background: linear-gradient(180deg, #6366f1 0%, rgba(99,102,241,0.25) 100%);
+    transition: height 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .bar-label { font-size: 10.5px; color: var(--text-muted); }
+
+  .platform-list { display: flex; flex-direction: column; gap: 11px; margin-top: 2px; }
+  .platform-row {
+    display: flex; align-items: center; gap: 11px;
+  }
+  .platform-name { width: 96px; font-size: 12.5px; color: var(--text-secondary); }
+  .platform-track {
+    flex: 1; height: 5px;
+    background: rgba(255,255,255,0.055);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .platform-fill { height: 100%; border-radius: 3px; }
+  .platform-count { width: 26px; text-align: right; font-size: 12.5px; font-weight: 500; }
+
+  /* ========== 8+9+10 ========== */
+  .bottom-row {
+    display: grid;
+    grid-template-columns: 1.25fr 1fr 1fr;
+    gap: 16px;
+  }
+  .upcoming-list { display: flex; flex-direction: column; }
+  .upcoming-item {
+    display: flex; gap: 13px;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .upcoming-item:last-child { border-bottom: none; padding-bottom: 0; }
+  .upcoming-item:first-child { padding-top: 0; }
+  .upcoming-date {
+    width: 46px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .upcoming-day { font-size: 10.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+  .upcoming-num { font-size: 17px; font-weight: 600; letter-spacing: -0.025em; }
+  .upcoming-info { flex: 1; }
+  .upcoming-title { font-size: 13px; font-weight: 500; margin-bottom: 1px; }
+  .upcoming-meta { font-size: 11.5px; color: var(--text-muted); }
+
+  .badge-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+  }
+  .badge {
+    background: rgba(255,255,255,0.025);
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    padding: 13px 10px;
+    text-align: center;
+    transition: all 0.18s;
+  }
+  .badge:hover { 
+    border-color: var(--border-hover); 
+    background: rgba(255,255,255,0.04); 
+  }
+  .badge-icon { font-size: 20px; margin-bottom: 5px; }
+  .badge-label { font-size: 11.5px; font-weight: 500; color: var(--text-secondary); }
+
+  .kanban-flow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .kanban-stage { text-align: center; }
+  .kanban-num {
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13.5px; font-weight: 600;
+    margin: 0 auto 5px;
+  }
+  .kanban-label { font-size: 10.5px; color: var(--text-muted); }
+  .kanban-arrow {
+    color: var(--text-muted);
+    opacity: 0.35;
+    font-size: 11px;
+  }
+  .pipeline-btn {
+    display: block;
+    width: 100%;
+    height: 34px;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: #a5b4fc;
+    font-size: 12.5px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .pipeline-btn:hover {
+    background: var(--accent-soft);
+    border-color: rgba(99,102,241,0.28);
+  }
+
+  /* Responsive */
+  @media (max-width: 1100px) {
+    .hero { grid-template-columns: 1fr; }
+    .focus-grid { grid-template-columns: 1fr 1fr; }
+    .two-col { grid-template-columns: 1fr; }
+    .coach-grid { grid-template-columns: 1fr 1fr; }
+    .analytics-row { grid-template-columns: 1fr; }
+    .bottom-row { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 700px) {
+    .sidebar { transform: translateX(-100%); }
+    .sidebar.open { transform: translateX(0); }
+    .main { margin-left: 0 !important; }
+    .focus-grid { grid-template-columns: 1fr; }
+    .coach-grid { grid-template-columns: 1fr; }
+    .content { padding: 20px 16px 40px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="logo-mark">👁</div>
+    <span class="logo-text">EyeOJob</span>
+  </div>
+  <nav class="nav">
+    <a href="#" class="nav-item active">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>
+      <span class="nav-label">Dashboard</span>
+    </a>
+    <a href="#" class="nav-item">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+      <span class="nav-label">Applications</span>
+    </a>
+    <a href="#" class="nav-item">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      <span class="nav-label">Career Timeline</span>
+    </a>
+    <a href="#" class="nav-item">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+      <span class="nav-label">Analytics</span>
+    </a>
+    <a href="#" class="nav-item">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      <span class="nav-label">Calendar</span>
+    </a>
+    <a href="#" class="nav-item">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 2a4 4 0 014 4v1a4 4 0 01-8 0V6a4 4 0 014-4z"/><path d="M16 14c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v6h8v-6z"/></svg>
+      <span class="nav-label">AI Coach</span>
+    </a>
+    <a href="#" class="nav-item">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+      <span class="nav-label">Resume</span>
+    </a>
+    <a href="#" class="nav-item">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      <span class="nav-label">Settings</span>
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-row">
+      <div class="avatar">H</div>
+      <div class="user-info">
+        <div class="user-name">Harsh</div>
+        <div class="user-plan">Pro Plan</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <header class="header">
+    <div class="header-left">
+      <button class="collapse-btn" onclick="toggleSidebar()" title="Toggle sidebar">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+      </button>
+      <div class="search-box">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input type="text" placeholder="Search applications, companies..." />
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="sync-btn">
+        <span class="pulse-dot"></span>
+        Live Sync
+        <div class="sync-popover">
+          <div class="sync-row"><span>Status</span><span style="color:#34d399">Connected</span></div>
+          <div class="sync-row"><span>Last Sync</span><span>2 min ago</span></div>
+          <div class="sync-row"><span>Emails Scanned</span><span>1,254</span></div>
+          <div class="sync-row"><span>Jobs Extracted</span><span>312</span></div>
+          <div class="sync-row"><span>Next Sync</span><span>28 min</span></div>
+          <button class="sync-now">Sync Now</button>
+        </div>
+      </button>
+      <button class="icon-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <span class="notif-badge">3</span>
+      </button>
+      <button class="icon-btn" title="Theme">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+      </button>
+      <button class="profile-btn">H</button>
+    </div>
+  </header>
+
+  <div class="content">
+
+    <!-- 1. HERO -->
+    <section class="hero fade-in" style="animation-delay:0.04s">
+      <div class="hero-main">
+        <div class="greeting">Good Evening, Harsh 👋</div>
+        <div class="greeting-sub">Today looks productive. Here's what happened.</div>
+        <ul class="summary-list">
+          <li>
+            <span class="summary-dot" style="background:#fb923c"></span>
+            <span><strong>Amazon</strong> invited you for an Online Assessment.</span>
+          </li>
+          <li>
+            <span class="summary-dot" style="background:#a78bfa"></span>
+            <span><strong>Adobe</strong> interview is scheduled for tomorrow at 11 AM.</span>
+          </li>
+          <li>
+            <span class="summary-dot" style="background:#22d3ee"></span>
+            <span><strong>Google</strong> viewed your application 2 hours ago.</span>
+          </li>
+          <li>
+            <span class="summary-dot" style="background:#34d399"></span>
+            <span><strong>4 new job emails</strong> arrived in your inbox today.</span>
+          </li>
+        </ul>
+      </div>
+      <div class="hero-side">
+        <div class="health-card">
+          <div class="health-label">Career Health</div>
+          <div class="health-score">91%</div>
+          <div class="health-note">You're performing better than last week. Keep the momentum.</div>
+        </div>
+        <div class="goal-card">
+          <div class="goal-header">
+            <span class="goal-title">Monthly Goal</span>
+            <span class="goal-count"><strong>86</strong> / 100</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill"></div>
+          </div>
+          <button class="goal-cta">Apply to 4 more →</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. TODAY'S FOCUS -->
+    <div class="fade-in" style="animation-delay:0.1s">
+      <div class="section-title">Today's Focus</div>
+      <div class="focus-grid">
+        <div class="focus-card">
+          <div class="focus-icon" style="background:rgba(251,146,60,0.14);color:#fb923c">📋</div>
+          <div class="focus-title">Finish Amazon OA</div>
+          <div class="focus-meta">Due today · 11:59 PM</div>
+        </div>
+        <div class="focus-card">
+          <div class="focus-icon" style="background:rgba(167,139,250,0.14);color:#a78bfa">🎯</div>
+          <div class="focus-title">Interview Tomorrow</div>
+          <div class="focus-meta">Adobe · 11:00 AM</div>
+        </div>
+        <div class="focus-card">
+          <div class="focus-icon" style="background:rgba(34,211,238,0.14);color:#22d3ee">💬</div>
+          <div class="focus-title">Reply to HR</div>
+          <div class="focus-meta">Microsoft · 2 days pending</div>
+        </div>
+        <div class="focus-card">
+          <div class="focus-icon" style="background:rgba(99,102,241,0.14);color:#818cf8">📄</div>
+          <div class="focus-title">Resume needs update</div>
+          <div class="focus-meta">ATS score dropped 8%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3 + 4 -->
+    <div class="two-col fade-in" style="animation-delay:0.16s">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Recent Career Activity</span>
+        </div>
+        <div class="timeline">
+          <div class="timeline-item">
+            <div class="timeline-dot" style="background:#fb923c"></div>
+            <div class="timeline-time">09:30</div>
+            <div class="timeline-text"><strong>Amazon</strong> sent Online Assessment invite</div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot" style="background:#22d3ee"></div>
+            <div class="timeline-time">11:20</div>
+            <div class="timeline-text"><strong>Google</strong> viewed your application</div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot" style="background:#a78bfa"></div>
+            <div class="timeline-time">14:05</div>
+            <div class="timeline-text">New email from <strong>Stripe</strong> recruiting</div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot" style="background:#34d399"></div>
+            <div class="timeline-time">Yesterday</div>
+            <div class="timeline-text"><strong>Adobe</strong> interview scheduled for Aug 2</div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot" style="background:#6366f1"></div>
+            <div class="timeline-time">Yesterday</div>
+            <div class="timeline-text">Applied to <strong>Notion</strong> — Frontend Engineer</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Recent Applications</span>
+          <a href="#" class="card-link">View all →</a>
+        </div>
+        <div class="app-list">
+          <div class="app-item">
+            <div class="app-logo" style="background:rgba(66,133,244,0.14);color:#4285f4">G</div>
+            <div class="app-info">
+              <div class="app-role">Senior Frontend Engineer</div>
+              <div class="app-company">Google · 2 days ago</div>
+            </div>
+            <span class="app-status" style="background:rgba(251,146,60,0.12);color:#fb923c">Interview</span>
+            <span class="app-open">Open →</span>
+          </div>
+          <div class="app-item">
+            <div class="app-logo" style="background:rgba(255,153,0,0.14);color:#ff9900">A</div>
+            <div class="app-info">
+              <div class="app-role">SDE-2</div>
+              <div class="app-company">Amazon · 3 days ago</div>
+            </div>
+            <span class="app-status" style="background:rgba(167,139,250,0.12);color:#a78bfa">Assessment</span>
+            <span class="app-open">Open →</span>
+          </div>
+          <div class="app-item">
+            <div class="app-logo" style="background:rgba(235,40,40,0.14);color:#eb2828">Ad</div>
+            <div class="app-info">
+              <div class="app-role">UI Engineer</div>
+              <div class="app-company">Adobe · 4 days ago</div>
+            </div>
+            <span class="app-status" style="background:rgba(99,102,241,0.12);color:#818cf8">Applied</span>
+            <span class="app-open">Open →</span>
+          </div>
+          <div class="app-item">
+            <div class="app-logo" style="background:rgba(0,120,212,0.14);color:#0078d4">M</div>
+            <div class="app-info">
+              <div class="app-role">Full Stack Developer</div>
+              <div class="app-company">Microsoft · 5 days ago</div>
+            </div>
+            <span class="app-status" style="background:rgba(52,211,153,0.12);color:#34d399">Offer</span>
+            <span class="app-open">Open →</span>
+          </div>
+          <div class="app-item">
+            <div class="app-logo" style="background:rgba(255,204,0,0.14);color:#e6b800">B</div>
+            <div class="app-info">
+              <div class="app-role">Frontend Intern</div>
+              <div class="app-company">Blinkit · 6 days ago</div>
+            </div>
+            <span class="app-status" style="background:rgba(255,255,255,0.06);color:#a1a1aa">Awaiting</span>
+            <span class="app-open">Open →</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. AI CAREER COACH -->
+    <div class="coach-section fade-in" style="animation-delay:0.22s">
+      <div class="section-title">AI Career Coach</div>
+      <div class="coach-grid">
+        <div class="coach-card">
+          <span class="coach-tag" style="color:#34d399">Insight</span>
+          <div class="coach-text">Your <strong>referral applications</strong> receive <strong>31% more replies</strong> than cold applies.</div>
+        </div>
+        <div class="coach-card">
+          <span class="coach-tag" style="color:#22d3ee">Pattern</span>
+          <div class="coach-text"><strong>React</strong> roles convert 2.1× better than Full Stack for your profile.</div>
+        </div>
+        <div class="coach-card">
+          <span class="coach-tag" style="color:#fb923c">Alert</span>
+          <div class="coach-text">Your resume ATS score dropped <strong>8%</strong> this week. Update keywords.</div>
+        </div>
+        <div class="coach-card">
+          <span class="coach-tag" style="color:#a78bfa">Trend</span>
+          <div class="coach-text">Jobs mentioning <strong>Docker</strong> increased by <strong>17%</strong> in your feed.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6 + 7 -->
+    <div class="analytics-row fade-in" style="animation-delay:0.28s">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Application Trend</span>
+          <span style="font-size:11.5px;color:var(--text-muted)">Last 7 months</span>
+        </div>
+        <div class="chart-bars">
+          <div class="bar-col"><div class="bar" style="height:32%"></div><span class="bar-label">Jan</span></div>
+          <div class="bar-col"><div class="bar" style="height:48%"></div><span class="bar-label">Feb</span></div>
+          <div class="bar-col"><div class="bar" style="height:41%"></div><span class="bar-label">Mar</span></div>
+          <div class="bar-col"><div class="bar" style="height:65%"></div><span class="bar-label">Apr</span></div>
+          <div class="bar-col"><div class="bar" style="height:88%"></div><span class="bar-label">May</span></div>
+          <div class="bar-col"><div class="bar" style="height:72%"></div><span class="bar-label">Jun</span></div>
+          <div class="bar-col"><div class="bar" style="height:95%"></div><span class="bar-label">Jul</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Platform Distribution</span>
+        </div>
+        <div class="platform-list">
+          <div class="platform-row">
+            <span class="platform-name">LinkedIn</span>
+            <div class="platform-track"><div class="platform-fill" style="width:42%;background:#3b82f6"></div></div>
+            <span class="platform-count">36</span>
+          </div>
+          <div class="platform-row">
+            <span class="platform-name">Indeed</span>
+            <div class="platform-track"><div class="platform-fill" style="width:22%;background:#a78bfa"></div></div>
+            <span class="platform-count">19</span>
+          </div>
+          <div class="platform-row">
+            <span class="platform-name">Referral</span>
+            <div class="platform-track"><div class="platform-fill" style="width:16%;background:#22d3ee"></div></div>
+            <span class="platform-count">14</span>
+          </div>
+          <div class="platform-row">
+            <span class="platform-name">Company Site</span>
+            <div class="platform-track"><div class="platform-fill" style="width:12%;background:#fb923c"></div></div>
+            <span class="platform-count">10</span>
+          </div>
+          <div class="platform-row">
+            <span class="platform-name">Naukri</span>
+            <div class="platform-track"><div class="platform-fill" style="width:8%;background:#34d399"></div></div>
+            <span class="platform-count">7</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8 + 9 + 10 -->
+    <div class="bottom-row fade-in" style="animation-delay:0.34s">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Upcoming Timeline</span>
+        </div>
+        <div class="upcoming-list">
+          <div class="upcoming-item">
+            <div class="upcoming-date">
+              <div class="upcoming-day">Tomorrow</div>
+              <div class="upcoming-num">2</div>
+            </div>
+            <div class="upcoming-info">
+              <div class="upcoming-title">Adobe Technical Interview</div>
+              <div class="upcoming-meta">11:00 AM · Video call</div>
+            </div>
+          </div>
+          <div class="upcoming-item">
+            <div class="upcoming-date">
+              <div class="upcoming-day">Aug</div>
+              <div class="upcoming-num">4</div>
+            </div>
+            <div class="upcoming-info">
+              <div class="upcoming-title">Amazon Online Assessment</div>
+              <div class="upcoming-meta">Due 11:59 PM</div>
+            </div>
+          </div>
+          <div class="upcoming-item">
+            <div class="upcoming-date">
+              <div class="upcoming-day">Aug</div>
+              <div class="upcoming-num">6</div>
+            </div>
+            <div class="upcoming-info">
+              <div class="upcoming-title">Microsoft HR Round</div>
+              <div class="upcoming-meta">3:30 PM · Phone</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Achievements</span>
+        </div>
+        <div class="badge-grid">
+          <div class="badge">
+            <div class="badge-icon">🔥</div>
+            <div class="badge-label">30 Day Streak</div>
+          </div>
+          <div class="badge">
+            <div class="badge-icon">🎯</div>
+            <div class="badge-label">100 Applications</div>
+          </div>
+          <div class="badge">
+            <div class="badge-icon">🎤</div>
+            <div class="badge-label">10 Interviews</div>
+          </div>
+          <div class="badge">
+            <div class="badge-icon">🏆</div>
+            <div class="badge-label">First Offer</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Pipeline Preview</span>
+        </div>
+        <div class="kanban-flow">
+          <div class="kanban-stage">
+            <div class="kanban-num" style="background:rgba(99,102,241,0.14);color:#818cf8">86</div>
+            <div class="kanban-label">Applied</div>
+          </div>
+          <span class="kanban-arrow">→</span>
+          <div class="kanban-stage">
+            <div class="kanban-num" style="background:rgba(167,139,250,0.14);color:#a78bfa">7</div>
+            <div class="kanban-label">OA</div>
+          </div>
+          <span class="kanban-arrow">→</span>
+          <div class="kanban-stage">
+            <div class="kanban-num" style="background:rgba(251,146,60,0.14);color:#fb923c">12</div>
+            <div class="kanban-label">Interview</div>
+          </div>
+          <span class="kanban-arrow">→</span>
+          <div class="kanban-stage">
+            <div class="kanban-num" style="background:rgba(52,211,153,0.14);color:#34d399">2</div>
+            <div class="kanban-label">Offer</div>
+          </div>
+        </div>
+        <button class="pipeline-btn">Open Pipeline →</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('collapsed');
+  }
+
+  // Smooth sequential entrance
+  document.querySelectorAll('.fade-in').forEach((el, i) => {
+    el.style.animationDelay = (0.04 + i * 0.055) + 's';
+  });
+</script>
+</body>
+</html>

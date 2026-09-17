@@ -1,0 +1,12 @@
+{
+  "name": "eyeojob",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev --workspace=server",
+    "dev:client": "npm run dev --workspace=client"
+  }
+}
