@@ -55,4 +55,7 @@ Thumbs.db
 package-lock.json
 
 # Ignore local uploads if any
-uploads/db_backup/
+uploads/
+
+# Database dumps/backups
+db_backup/

@@ -21,12 +21,67 @@ const findByIdForUser = async (id, userId) => {
   return rows[0] || null;
 };
 
-const findTimeline = async (applicationId) => {
+// Phase 7: LEFT JOIN processed_emails (matching email_msg_id = gmail_msg_id,
+// scoped by user_id so one user's timeline can never pick up another user's
+// email row) so the journey timeline can show lightweight email context per
+// event without a second round trip. Only lightweight fields are selected —
+// never plain_text/raw_html (full body stays behind the lazy-load endpoint,
+// GET /records/processed-emails/:id). Snippet is truncated to ~250 chars at
+// the SQL layer as a defense-in-depth measure even though raw_snippet is
+// already capped at ~500 by the pipeline writer.
+// Dismissed events (is_dismissed = 1, Phase 8 soft-hide) are excluded by
+// default — they're not deleted, just no longer shown on the journey.
+const findTimeline = async (applicationId, userId, { includeDismissed = false } = {}) => {
   const [rows] = await db.query(
-    'SELECT * FROM timeline_events WHERE application_id = ? ORDER BY event_date ASC',
-    [applicationId]
+    `SELECT te.*,
+            LEFT(pe.raw_snippet, 250) AS email_snippet,
+            pe.subject AS email_subject,
+            pe.sender AS email_sender,
+            pe.received_at AS email_received_at_full,
+            pe.gmail_msg_id AS email_gmail_msg_id,
+            pe.id AS processed_email_id
+     FROM timeline_events te
+     LEFT JOIN processed_emails pe
+       ON pe.gmail_msg_id = te.email_msg_id AND pe.user_id = ?
+     WHERE te.application_id = ?
+       ${includeDismissed ? '' : 'AND te.is_dismissed = 0'}
+     ORDER BY te.event_date ASC`,
+    [userId, applicationId]
   );
   return rows;
+};
+
+// Phase 8: soft-hide only — never a physical DELETE, mirroring
+// applications.deleted_at's convention. Scoped through a join to
+// applications.user_id so a user can never dismiss another user's event.
+const dismissTimelineEvent = async (eventId, applicationId, userId) => {
+  const [result] = await db.query(
+    `UPDATE timeline_events te
+     JOIN applications a ON a.id = te.application_id
+     SET te.is_dismissed = 1, te.dismissed_at = NOW()
+     WHERE te.id = ? AND te.application_id = ? AND a.user_id = ? AND a.deleted_at IS NULL`,
+    [eventId, applicationId, userId]
+  );
+  return result.affectedRows > 0;
+};
+
+// Phase 8: manual milestone — a user-authored timeline entry, tagged
+// metadata.source = 'manual' so the journey UI can distinguish it from
+// pipeline-detected events. Uses the same insertTimelineEvent table as
+// everything else — no parallel events table.
+const addManualMilestone = async (applicationId, userId, { eventType, eventDate, description }) => {
+  const owns = await db.query(
+    'SELECT id FROM applications WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+    [applicationId, userId]
+  );
+  if (!owns[0].length) return null;
+
+  const [result] = await db.query(
+    `INSERT INTO timeline_events (application_id, event_type, event_date, description, metadata)
+     VALUES (?, ?, ?, ?, ?)`,
+    [applicationId, eventType, eventDate || new Date(), description, JSON.stringify({ source: 'manual' })]
+  );
+  return result.insertId;
 };
 
 const findEmails = async (applicationId) => {
@@ -199,5 +254,7 @@ module.exports = {
   updateStatus,
   softDeleteApplication,
   addTimelineEvent,
+  dismissTimelineEvent,
+  addManualMilestone,
   getStats,
 };

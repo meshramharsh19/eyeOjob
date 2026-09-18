@@ -57,16 +57,33 @@ const listForUser = async (userId) => {
   }));
 };
 
+// "Awaiting Update" (spec §4): presentation-layer-only — computed here so it
+// ships to the client as a plain boolean/label, but NEVER persisted as a
+// status. Silence is never inferred as Rejected/Withdrawn/Ghosted; this is
+// purely "no status change in a while and the application is still open".
+const AWAITING_UPDATE_THRESHOLD_DAYS = 14;
+
+const computeAwaitingUpdate = (application) => {
+  if (TERMINAL_STATUSES.has(application.status)) return false;
+  if (!application.status_changed_at) return false;
+  const days = (Date.now() - new Date(application.status_changed_at).getTime()) / 86400000;
+  return days > AWAITING_UPDATE_THRESHOLD_DAYS;
+};
+
 const getWithTimeline = async (id, userId) => {
   const application = await applicationsRepository.findByIdForUser(id, userId);
   if (!application) throw new NotFoundError('Application not found');
 
   const [timeline, emails] = await Promise.all([
-    applicationsRepository.findTimeline(id),
+    applicationsRepository.findTimeline(id, userId),
     applicationsRepository.findEmails(id),
   ]);
 
-  return { application, timeline, emails };
+  return {
+    application: { ...application, awaitingUpdate: computeAwaitingUpdate(application) },
+    timeline,
+    emails,
+  };
 };
 
 const createManualApplication = async (userId, data = {}) => {
@@ -197,6 +214,35 @@ const deleteApplication = async (id, userId) => {
 
 const getStats = async (userId) => applicationsRepository.getStats(userId);
 
+// Phase 8: Dismiss Event — soft-hide, never a physical delete (matches
+// applications.deleted_at convention elsewhere in this module).
+const dismissEvent = async (applicationId, eventId, userId) => {
+  const application = await applicationsRepository.findByIdForUser(applicationId, userId);
+  if (!application) throw new NotFoundError('Application not found');
+
+  const ok = await applicationsRepository.dismissTimelineEvent(eventId, applicationId, userId);
+  if (!ok) throw new NotFoundError('Timeline event not found');
+  return { success: true };
+};
+
+// Phase 8: Add Custom Milestone — a manual timeline entry tagged
+// metadata.source = 'manual' via addManualMilestone(). Deliberately does NOT
+// touch applications.status — a milestone is purely a journey annotation,
+// not a status change (use the existing update/updateStatus endpoints for that).
+const addMilestone = async (applicationId, userId, { eventType, eventDate, description } = {}) => {
+  const application = await applicationsRepository.findByIdForUser(applicationId, userId);
+  if (!application) throw new NotFoundError('Application not found');
+  if (!description?.trim()) throw new BadRequestError('A description is required for a custom milestone.');
+
+  const id = await applicationsRepository.addManualMilestone(applicationId, userId, {
+    eventType: eventType?.trim() || 'MANUAL_MILESTONE',
+    eventDate: eventDate ? new Date(eventDate) : new Date(),
+    description: description.trim(),
+  });
+  if (!id) throw new NotFoundError('Application not found');
+  return { success: true, id };
+};
+
 module.exports = {
   triggerSync,
   stopSync,
@@ -206,5 +252,7 @@ module.exports = {
   updateManualApplication,
   updateStatus,
   deleteApplication,
+  dismissEvent,
+  addMilestone,
   getStats,
 };

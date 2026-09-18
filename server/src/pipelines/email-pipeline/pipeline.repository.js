@@ -82,16 +82,41 @@ const insertApplication = async (fields) => {
   return result.insertId;
 };
 
+// Phase 5: extended to accept emailReceivedAt/confidence/metadata while
+// staying backward compatible with every existing caller (manual CRUD in
+// applications.repository.js calls its own addTimelineEvent, unaffected).
+//
+// Idempotency (Phase 3 dedupe rule): INSERT IGNORE relies on the
+// uq_email_event_dedupe unique key (email_msg_id, event_type, event_date) —
+// see migrations/add_timeline_event_lifecycle_columns.sql. Reprocessing the
+// same Gmail message can never create a second row for the same event on
+// the same date, but a genuine repeat (e.g. an interview rescheduled to a
+// different date, or a follow-up email for the same event_type on the same
+// day sent as a distinct message) still gets its own row because at least
+// one part of the key differs. Manual milestones (emailMsgId null) never
+// collide against each other or against pipeline events via this index,
+// since MySQL treats each NULL as distinct within a unique key.
 const insertTimelineEvent = async ({
   applicationId, eventType, eventDate, description, emailMsgId,
-  matchStrategy, matchConfidence,
+  matchStrategy, matchConfidence, emailReceivedAt = null, confidence = null,
+  metadata = null,
 }) => {
-  await db.query(
-    `INSERT INTO timeline_events
-     (application_id, event_type, event_date, description, email_msg_id, match_strategy, match_confidence)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [applicationId, eventType, eventDate, description, emailMsgId, matchStrategy || null, matchConfidence ?? null]
+  const [result] = await db.query(
+    `INSERT IGNORE INTO timeline_events
+     (application_id, event_type, event_date, description, email_msg_id, match_strategy, match_confidence,
+      email_received_at, confidence, metadata)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      applicationId, eventType, eventDate, description, emailMsgId || null,
+      matchStrategy || null, matchConfidence ?? null, emailReceivedAt || null,
+      confidence ?? null, metadata ? JSON.stringify(metadata) : null,
+    ]
   );
+  // affectedRows === 0 means the unique key already existed — this exact
+  // (email, event_type, event_date) triple was already recorded, so the
+  // caller (and any notification it would have fired) should treat this as
+  // a genuine duplicate, not a new event.
+  return { insertId: result.insertId, wasInserted: result.affectedRows > 0 };
 };
 
 const getGmailCredentials = async (userId) => {

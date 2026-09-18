@@ -15,5 +15,7 @@ router.patch('/:id', authMiddleware, asyncHandler(controller.update));
 router.put('/:id', authMiddleware, asyncHandler(controller.update));
 router.delete('/:id', authMiddleware, asyncHandler(controller.remove));
 router.patch('/:id/status', authMiddleware, asyncHandler(controller.updateStatus));
+router.post('/:id/milestones', authMiddleware, asyncHandler(controller.addMilestone));
+router.patch('/:id/timeline/:eventId/dismiss', authMiddleware, asyncHandler(controller.dismissEvent));
 
 module.exports = router;

@@ -17,6 +17,7 @@ const { normalizeCompany, normalizeRole } = require('./matching/normalization.se
 const { createSyncStats, timeIt, recordDrop, summarizeStats } = require('./pipeline.stats');
 const repository = require('./pipeline.repository');
 const notificationsService = require('../../modules/notifications/notifications.service');
+const { mapStatusStringToEventType, mapEventTypeToStatus } = require('./eventTaxonomy');
 
 // ── Regex fallback: pull role from common phrasing when the AI misses it ──
 const ROLE_PATTERNS = [
@@ -174,6 +175,13 @@ const processEmail = async (gmail, userId, messageId, stats, threadLocks, isInit
         role: extraction.role,
         status: extraction.status,
       });
+      // Phase 3: deterministic parser has no notion of a granular event_type
+      // of its own — derive the closest one from the coarse status it
+      // parsed. event_date stays null (falls back to the email's own
+      // received date; the parser doesn't extract relative dates).
+      extraction.event_type = mapStatusStringToEventType(extraction.status);
+      extraction.event_date = null;
+      extraction.source = 'deterministic_parser';
       stats.parserHitCount++;
     } else {
       stats.parserSanityFailCount++;
@@ -185,7 +193,7 @@ const processEmail = async (gmail, userId, messageId, stats, threadLocks, isInit
   if (!extraction) {
     stats.aiCallCount++;
     const aiData = await timeIt(stats, 'aiExtractMs', () =>
-      extractJobDetails(subject, body, sender, stats)
+      extractJobDetails(subject, body, sender, stats, receivedAt)
     );
 
     // AI sometimes misses role even when it's clearly stated in prose — try a regex fallback
@@ -224,6 +232,11 @@ const processEmail = async (gmail, userId, messageId, stats, threadLocks, isInit
       return null;
     } else {
       extraction = aiData;
+      extraction.source = 'ai';
+      // Fall back to a status-derived event type if the AI didn't return a
+      // granular event_type directly (older provider response shape, or it
+      // simply left the field null while still populating status).
+      extraction.event_type = extraction.event_type || mapStatusStringToEventType(extraction.status);
       finalConfidence = calculateConfidence({
         source: 'ai',
         ruleConfidence: ruleResult.confidence,
@@ -267,6 +280,16 @@ const processEmail = async (gmail, userId, messageId, stats, threadLocks, isInit
     matchApplication(userId, emailData)
   );
 
+  // Phase 3/4: granular event identity — resolved once, shared by every
+  // branch below. event_date defaults to the email's own received date when
+  // extraction didn't resolve a specific event date (interview date, etc).
+  const granularEventType = extraction.event_type || 'correspondence';
+  const resolvedEventDate = extraction.event_date ? new Date(extraction.event_date) : receivedAt;
+  const eventMetadata = {
+    source: extraction.source || 'ai',
+    ...(extraction.round ? { round: extraction.round } : {}),
+  };
+
   let applicationId;
 
   if (matchResult.decision === DECISION.AUTO_MERGE) {
@@ -274,61 +297,73 @@ const processEmail = async (gmail, userId, messageId, stats, threadLocks, isInit
     applicationId = matchResult.application.id;
 
     const isLocked = Boolean(matchResult.application.is_locked_by_user);
-    const newStatus = mapStatusToEnum(extraction.status);
+    const newStatus = mapStatusToEnum(extraction.status) || mapEventTypeToStatus(granularEventType);
+
+    // Phase 4 (CRITICAL FIX): timeline writing is now fully decoupled from
+    // the status-progression guard below. EVERY valid lifecycle event gets
+    // written to timeline_events — including when the mapped coarse status
+    // is identical to the application's current status (e.g. a second
+    // "still under review" email, or an INTERVIEW_SCHEDULED reschedule that
+    // doesn't change the coarse "Interview" stage). Idempotency is handled
+    // inside insertTimelineEvent() (INSERT IGNORE on the email+event+date
+    // unique key), so reprocessing the same message is still a no-op.
+    const { wasInserted } = await timeIt(stats, 'dbWriteMs', () => repository.insertTimelineEvent({
+      applicationId,
+      eventType: granularEventType,
+      eventDate: resolvedEventDate,
+      description: `${subject}`,
+      emailMsgId: messageId,
+      matchStrategy: matchResult.strategy,
+      matchConfidence: matchResult.score,
+      emailReceivedAt: receivedAt,
+      confidence: finalConfidence,
+      metadata: eventMetadata,
+    }));
 
     if (isLocked) {
       // Application status is locked by the user (manual edit or override).
-      // Do not mutate status, company, or role.
-      // Still log a timeline event so the email correspondence is visible.
-      await timeIt(stats, 'dbWriteMs', () => repository.insertTimelineEvent({
-        applicationId,
-        eventType: extraction.status?.toLowerCase() || 'correspondence',
-        eventDate: receivedAt,
-        description: `${subject} (status unchanged: locked by user at "${matchResult.application.status}")`,
-        emailMsgId: messageId,
-        matchStrategy: matchResult.strategy,
-        matchConfidence: matchResult.score,
-      }));
+      // Do not mutate status, company, or role — the event above is still
+      // recorded so the email correspondence remains visible.
+      logger.debug(`[pipeline.orchestrator] application ${applicationId} locked by user — event recorded, status left at "${matchResult.application.status}"`);
     } else if (shouldApplyStatus(matchResult.application.status, newStatus)) {
       await timeIt(stats, 'dbWriteMs', () => repository.updateApplicationStatus(applicationId, newStatus, finalConfidence));
-
-      // Timeline event add
-      await timeIt(stats, 'dbWriteMs', () => repository.insertTimelineEvent({
-        applicationId,
-        eventType: extraction.status?.toLowerCase() || 'update',
-        eventDate: receivedAt,
-        description: `Status updated to ${newStatus} via email: ${subject}`,
-        emailMsgId: messageId,
-        matchStrategy: matchResult.strategy,
-        matchConfidence: matchResult.score,
-      }));
 
       // Pipeline-detected status change on an existing application — notify
       // (manual edits go through applications.service.js#updateManualApplication
       // instead, which never calls this, since the user already knows).
-      await notificationsService.notifyStatusEvent({
+      // Skipped when the event itself was a duplicate (wasInserted false) —
+      // a reprocessed message must never fire a second notification even if
+      // (in some edge case) the status guard would otherwise have re-applied.
+      if (wasInserted) {
+        await notificationsService.notifyStatusEvent({
+          applicationId,
+          userId,
+          status: newStatus,
+          eventType: granularEventType,
+          company: matchResult.application.company || extraction.company,
+          role: matchResult.application.role || extraction.role,
+          emailMsgId: messageId,
+          isInitialSync,
+        });
+      }
+    } else if (wasInserted) {
+      // Either the coarse status didn't change at all (e.g. a second
+      // "still under review" email, or an event like INTERVIEW_COMPLETED
+      // that doesn't move the coarse "Interview" stage), or newStatus was
+      // blocked by the terminal/regression guard above (out-of-order
+      // email). The timeline event above already makes the correspondence
+      // visible either way; some granular events (ASSESSMENT_PASSED/FAILED,
+      // INTERVIEW_COMPLETED/PASSED/FAILED, etc.) are still worth a
+      // dedicated notification even without a coarse status change.
+      await notificationsService.notifyEventType({
         applicationId,
         userId,
-        status: newStatus,
+        eventType: granularEventType,
         company: matchResult.application.company || extraction.company,
         role: matchResult.application.role || extraction.role,
         emailMsgId: messageId,
         isInitialSync,
       });
-    } else if (newStatus && newStatus !== matchResult.application.status) {
-      // Status wasn't applied (blocked by the terminal/regression guard above),
-      // but the email itself is still real correspondence — record it on the
-      // timeline so it's visible, instead of silently dropping it just because
-      // it arrived out of order relative to a later-stage status.
-      await timeIt(stats, 'dbWriteMs', () => repository.insertTimelineEvent({
-        applicationId,
-        eventType: extraction.status?.toLowerCase() || 'update',
-        eventDate: receivedAt,
-        description: `${subject} (received after application already reached "${matchResult.application.status}" — status not changed)`,
-        emailMsgId: messageId,
-        matchStrategy: matchResult.strategy,
-        matchConfidence: matchResult.score,
-      }));
     }
   } else {
     // No confident match (auto_new), or the best candidate was too ambiguous
@@ -358,19 +393,26 @@ const processEmail = async (gmail, userId, messageId, stats, threadLocks, isInit
     }));
 
     // First timeline event — event type reflects the application's actual
-    // starting status (a "new" application can start life already Rejected,
+    // starting event (a "new" application can start life already Rejected,
     // e.g. an auto-reject email with no prior confirmation ever received),
-    // not always 'applied'.
-    await timeIt(stats, 'dbWriteMs', () => repository.insertTimelineEvent({
+    // not always APPLIED.
+    const newAppEventType = granularEventType !== 'correspondence'
+      ? granularEventType
+      : (mapStatusStringToEventType(newApplicationStatus) || 'APPLIED');
+
+    const { wasInserted: newAppEventInserted } = await timeIt(stats, 'dbWriteMs', () => repository.insertTimelineEvent({
       applicationId,
-      eventType: newApplicationStatus.toLowerCase(),
-      eventDate: receivedAt,
+      eventType: newAppEventType,
+      eventDate: resolvedEventDate,
       description: isAmbiguous
         ? `Application detected via email: ${subject} (possible duplicate of application #${matchResult.application?.id}, score ${matchResult.score} — needs manual review)`
         : `Application detected via email: ${subject}`,
       matchStrategy: matchResult.strategy,
       matchConfidence: matchResult.score,
       emailMsgId: messageId,
+      emailReceivedAt: receivedAt,
+      confidence: finalConfidence,
+      metadata: eventMetadata,
     }));
 
     // Scenario B: a new application can be created directly at an already-
@@ -378,15 +420,18 @@ const processEmail = async (gmail, userId, messageId, stats, threadLocks, isInit
     // already an interview invite) — oldStatus !== newStatus doesn't apply
     // here since there was no prior status, so this can't reuse the branch
     // above and needs its own notify call.
-    await notificationsService.notifyStatusEvent({
-      applicationId,
-      userId,
-      status: newApplicationStatus,
-      company: newApplicationCompany,
-      role: newApplicationRole,
-      emailMsgId: messageId,
-      isInitialSync,
-    });
+    if (newAppEventInserted) {
+      await notificationsService.notifyStatusEvent({
+        applicationId,
+        userId,
+        status: newApplicationStatus,
+        eventType: newAppEventType,
+        company: newApplicationCompany,
+        role: newApplicationRole,
+        emailMsgId: messageId,
+        isInitialSync,
+      });
+    }
   }
 
   // Link email to application

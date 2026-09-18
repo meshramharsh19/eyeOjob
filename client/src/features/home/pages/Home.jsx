@@ -19,6 +19,7 @@ import TimelineEventsList from '../components/TimelineEventsList';
 import SyncStatusCard from '../components/SyncStatusCard';
 import RoleAliasesTable from '../components/RoleAliasesTable';
 import ApplicationModal from '../components/ApplicationModal';
+import ApplicationDetailDrawer from '../components/ApplicationDetailDrawer';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import { Button, Tabs } from '../../../shared/ui';
 import {
@@ -55,6 +56,7 @@ export const Home = () => {
   const [selectedApp, setSelectedApp] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [appToDelete, setAppToDelete] = useState(null);
+  const [journeyAppId, setJourneyAppId] = useState(null);
 
   const loadDashboard = async () => {
     setLoading(true);
@@ -136,6 +138,8 @@ export const Home = () => {
     setActiveTab('applications');
     if (app) handleOpenEdit(app);
   };
+
+  const handleViewJourney = (app) => setJourneyAppId(app.id);
 
   const handleOpenDelete = (app) => {
     setAppToDelete(app);
@@ -294,6 +298,7 @@ export const Home = () => {
                         onAdd={handleOpenCreate}
                         onEdit={handleOpenEdit}
                         onDelete={handleOpenDelete}
+                        onViewJourney={handleViewJourney}
                       />
                     </SectionCard>
                   </div>
@@ -366,6 +371,7 @@ export const Home = () => {
                   onAdd={handleOpenCreate}
                   onEdit={handleOpenEdit}
                   onDelete={handleOpenDelete}
+                  onViewJourney={handleViewJourney}
                   needsReviewOnly={needsReviewOnly}
                   onNeedsReviewOnlyChange={setNeedsReviewOnly}
                 />
@@ -415,6 +421,13 @@ export const Home = () => {
         initialData={selectedApp}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleSubmitApplication}
+      />
+
+      {/* Application Journey Drawer */}
+      <ApplicationDetailDrawer
+        applicationId={journeyAppId}
+        isOpen={journeyAppId != null}
+        onClose={() => setJourneyAppId(null)}
       />
 
       {/* Delete Confirmation Modal */}

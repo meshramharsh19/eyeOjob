@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Briefcase, Filter, Lock, Plus, Edit2, Trash2, AlertTriangle, Hourglass, CalendarDays, ChevronDown } from 'lucide-react';
+import { Search, Briefcase, Filter, Lock, Plus, Edit2, Trash2, AlertTriangle, Hourglass, CalendarDays, ChevronDown, GitBranch } from 'lucide-react';
 import { Table, Badge, Button } from '../../../shared/ui';
 
 const DATE_PRESETS = [
@@ -15,6 +15,7 @@ export const ApplicationsTable = ({
   onAdd,
   onEdit,
   onDelete,
+  onViewJourney,
   needsReviewOnly = false,
   onNeedsReviewOnlyChange,
 }) => {
@@ -202,6 +203,16 @@ export const ApplicationsTable = ({
       cellClassName: 'text-right',
       render: (app) => (
         <div className="flex items-center justify-end gap-1.5">
+          {onViewJourney && (
+            <button
+              type="button"
+              onClick={() => onViewJourney(app)}
+              title="View application journey"
+              className="rounded-lg p-1.5 text-[var(--text-muted)] hover:bg-[var(--background-alt)] hover:text-indigo-500 transition-colors"
+            >
+              <GitBranch className="h-3.5 w-3.5" />
+            </button>
+          )}
           {onEdit && (
             <button
               type="button"

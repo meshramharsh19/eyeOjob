@@ -11,7 +11,7 @@ const genAI = new GoogleGenerativeAI(env.ai.geminiApiKey);
 const OPENROUTER_API_KEY = env.ai.openRouterApiKey;
 const OPENROUTER_MODEL = env.ai.openRouterModel;
 
-const buildPrompt = (subject, body, sender) => `
+const buildPrompt = (subject, body, sender, emailReceivedAt = null) => `
 You are an expert AI email classifier and parser for a Job Application Tracker.
 
 Your job has two steps, in this order:
@@ -36,6 +36,9 @@ ${subject}
 Sender:
 ${sender}
 
+Email received at (anchor date — resolve ALL relative dates in the body against THIS date, not today):
+${emailReceivedAt ? new Date(emailReceivedAt).toISOString() : 'unknown'}
+
 Body:
 ${body?.substring(0, 5000)}
 
@@ -57,12 +60,36 @@ Return exactly this schema:
   "role": null,
   "platform": null,
   "status": null,
+  "event_type": null,
+  "event_date": null,
   "applied_date": null,
   "job_id": null,
   "location": null,
   "confidence": 0,
   "is_job_email": false
 }
+
+------------------------------------------------------------
+event_type / event_date (granular lifecycle event)
+------------------------------------------------------------
+
+In addition to "status" (the coarse stage, kept for backward compatibility),
+report the GRANULAR lifecycle event this email represents. Choose exactly
+ONE of these values for "event_type" (or null if intent is not lifecycle):
+
+APPLIED, APPLICATION_RECEIVED, APPLICATION_UNDER_REVIEW, SHORTLISTED,
+ASSESSMENT_INVITED, ASSESSMENT_COMPLETED, ASSESSMENT_PASSED, ASSESSMENT_FAILED,
+INTERVIEW_INVITED, INTERVIEW_SCHEDULED, INTERVIEW_COMPLETED, INTERVIEW_PASSED,
+INTERVIEW_FAILED, OFFER_RECEIVED, OFFER_ACCEPTED, OFFER_DECLINED, REJECTED,
+WITHDRAWN
+
+"event_date" is the date the EVENT ITSELF happens/happened (e.g. the
+scheduled interview date, the date an assessment is due), NOT necessarily
+the date the email was sent. If the email says something relative ("in 3
+days", "this Friday", "next week"), resolve it against the anchor date
+given above ("Email received at") and return an absolute ISO date
+(YYYY-MM-DD). If no specific event date is stated, return null (the caller
+falls back to the email's own received date).
 
 ------------------------------------------------------------
 FIELD DEFINITIONS
@@ -612,6 +639,8 @@ Return
   "role": null,
   "platform": null,
   "status": null,
+  "event_type": null,
+  "event_date": null,
   "applied_date": null,
   "job_id": null,
   "location": null,
@@ -993,8 +1022,8 @@ const callWithRetry = async (call, prompt, label) => {
   }
 };
 
-const extractJobDetails = async (subject, body, sender, stats = null) => {
-  const prompt = buildPrompt(subject, body, sender);
+const extractJobDetails = async (subject, body, sender, stats = null, emailReceivedAt = null) => {
+  const prompt = buildPrompt(subject, body, sender, emailReceivedAt);
   // Seven no-card, daily-renewing (not one-time-credit) free tiers, in
   // requested order: Mistral -> Gemini -> Cohere -> Groq -> rest. Cerebras
   // stays out of this chain — it 402s until a card is added — but its call
@@ -1035,6 +1064,8 @@ const extractJobDetails = async (subject, body, sender, stats = null) => {
         role: lifecycle ? result.role : null,
         job_id: lifecycle ? (result.job_id || null) : null,
         location: lifecycle ? (result.location || null) : null,
+        event_type: lifecycle ? (result.event_type || null) : null,
+        event_date: lifecycle ? (result.event_date || null) : null,
       };
     } catch (err) {
       const ms = Date.now() - start;
@@ -1050,7 +1081,8 @@ const extractJobDetails = async (subject, body, sender, stats = null) => {
   // application just because every provider happened to be unavailable.
   return {
     intent: INTENTS.OTHER, company: null, role: null, platform: null,
-    status: null, applied_date: null, job_id: null, location: null,
+    status: null, event_type: null, event_date: null, applied_date: null,
+    job_id: null, location: null,
     confidence: 0, is_job_email: false, extractionFailed: true,
   };
 };

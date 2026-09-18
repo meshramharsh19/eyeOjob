@@ -7,6 +7,18 @@ export const createApplication = (data) => api.post('/jobs', data).then((res) =>
 export const updateApplication = (id, data) => api.patch(`/jobs/${id}`, data).then((res) => res.data);
 export const deleteApplication = (id) => api.delete(`/jobs/${id}`).then((res) => res.data);
 
+// Application Journey (Phase 7/8) — per-application detail with the
+// journey timeline (email context joined in, no full body).
+export const getApplicationDetail = (id) => api.get(`/jobs/${id}`).then((res) => res.data);
+export const addApplicationMilestone = (id, data) =>
+  api.post(`/jobs/${id}/milestones`, data).then((res) => res.data);
+export const dismissTimelineEvent = (applicationId, eventId) =>
+  api.patch(`/jobs/${applicationId}/timeline/${eventId}/dismiss`).then((res) => res.data);
+
+// Lazy-loaded full email body — "View Full Original Email" action.
+export const getProcessedEmailFull = (id) =>
+  api.get(`/records/processed-emails/${id}`).then((res) => res.data.email);
+
 // Records ("/records") — read-only, per-user
 export const getProcessedEmails = (params) =>
   api.get('/records/processed-emails', { params }).then((res) => res.data.emails);

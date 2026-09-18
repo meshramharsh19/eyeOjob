@@ -46,6 +46,16 @@ const stats = async (req, res) => {
   res.json(result);
 };
 
+const dismissEvent = async (req, res) => {
+  const result = await applicationsService.dismissEvent(req.params.id, req.params.eventId, req.user.id);
+  res.json(result);
+};
+
+const addMilestone = async (req, res) => {
+  const result = await applicationsService.addMilestone(req.params.id, req.user.id, req.body);
+  res.status(201).json(result);
+};
+
 module.exports = {
   sync,
   stopSync,
@@ -56,4 +66,6 @@ module.exports = {
   remove,
   updateStatus,
   stats,
+  dismissEvent,
+  addMilestone,
 };

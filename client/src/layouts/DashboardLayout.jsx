@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Briefcase,
@@ -112,9 +112,11 @@ export const DashboardLayout = ({
         />
       )}
 
-      {/* Sidebar Navigation */}
+      {/* Sidebar Navigation — fixed at every breakpoint so it never scrolls
+          with the page; its own nav list scrolls independently while the
+          logo header (top) and user/logout footer (bottom) stay pinned. */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 flex w-64 flex-col border-r border-[var(--border)] bg-[var(--surface)]/95 backdrop-blur-md transition-transform duration-300 lg:static lg:translate-x-0 ${
+        className={`fixed top-0 bottom-0 left-0 z-50 flex h-screen w-64 flex-col border-r border-[var(--border)] bg-[var(--surface)]/95 backdrop-blur-md transition-transform duration-300 lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
         }`}
       >
@@ -163,8 +165,8 @@ export const DashboardLayout = ({
           </div>
         </div>
 
-        {/* Navigation links */}
-        <nav className="flex-1 space-y-1 px-3 py-2">
+        {/* Navigation links — the only part of the sidebar that scrolls */}
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -220,8 +222,8 @@ export const DashboardLayout = ({
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <div className="flex flex-1 flex-col overflow-x-hidden">
+      {/* Main Content Area — offset by the fixed sidebar's width on desktop */}
+      <div className="flex flex-1 flex-col overflow-x-hidden lg:ml-64">
         {/* Top App Header */}
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[var(--border)] bg-[var(--surface)]/80 px-4 backdrop-blur-md sm:px-6">
           <div className="flex items-center gap-3">
