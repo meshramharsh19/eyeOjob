@@ -22,8 +22,8 @@ class BaseAIProvider {
     throw new Error(`${this.providerId} adapter must implement _call()`);
   }
 
-  async extract(apiKey, model, subject, body, sender, emailReceivedAt = null) {
-    const prompt = buildPrompt(subject, body, sender, emailReceivedAt);
+  async extract(apiKey, model, subject, body, sender, emailReceivedAt = null, fewShotExamples = []) {
+    const prompt = buildPrompt(subject, body, sender, emailReceivedAt, fewShotExamples);
     try {
       return await this._call(apiKey, model || this.defaultModel, prompt);
     } catch (err) {

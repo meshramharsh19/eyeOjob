@@ -96,20 +96,26 @@ const insertApplication = async (fields) => {
 // one part of the key differs. Manual milestones (emailMsgId null) never
 // collide against each other or against pipeline events via this index,
 // since MySQL treats each NULL as distinct within a unique key.
+// appliedStatus (AI Correction Feedback Loop, Project DOCs/
+// ai-feedback-loop.md §3.1): NULL unless this specific row is the one that
+// actually set applications.status to that value — see
+// migrations/add_timeline_events_applied_status.sql and
+// pipeline.orchestrator.js's willApplyStatus for how callers decide this.
 const insertTimelineEvent = async ({
   applicationId, eventType, eventDate, description, emailMsgId,
   matchStrategy, matchConfidence, emailReceivedAt = null, confidence = null,
-  metadata = null,
+  metadata = null, appliedStatus = null,
 }) => {
   const [result] = await db.query(
     `INSERT IGNORE INTO timeline_events
      (application_id, event_type, event_date, description, email_msg_id, match_strategy, match_confidence,
-      email_received_at, confidence, metadata)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      email_received_at, confidence, metadata, applied_status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       applicationId, eventType, eventDate, description, emailMsgId || null,
       matchStrategy || null, matchConfidence ?? null, emailReceivedAt || null,
       confidence ?? null, metadata ? JSON.stringify(metadata) : null,
+      appliedStatus || null,
     ]
   );
   // affectedRows === 0 means the unique key already existed — this exact

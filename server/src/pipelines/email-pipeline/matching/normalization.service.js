@@ -6,6 +6,15 @@ const db = require('../../../config/database');
 // "Amazon Development Centre India Pvt. Ltd."). This resolves them to a
 // canonical form via the alias tables, falling back to a best-effort string
 // cleanup when no alias exists yet — so matching never operates on raw text.
+//
+// Multi-tenant lookup (AI Correction Feedback Loop, Project DOCs/
+// ai-feedback-loop.md §3.2): every alias row belongs to a user_id, with 0
+// reserved for the global/seed set. A user-specific correction always wins
+// over the global fallback for that same user, and is completely invisible
+// to every other user — one user's bad edit can never corrupt another
+// user's matching. userId is required on every call now (0 is not a
+// meaningful "current user", only ever a stored row's fallback value), so
+// every caller must know whose alias lookup this is.
 // ──────────────────────────────────────────────────
 
 const LEGAL_SUFFIXES = [
@@ -40,11 +49,14 @@ const basicCleanup = (raw) => {
 // running migrations.)
 const logger = require('../../../config/logger');
 
-const findCompanyAlias = async (rawName) => {
+// user_id IN (?, 0) ORDER BY user_id DESC: the caller's own row (user_id > 0)
+// sorts before the global seed row (user_id = 0) when both exist, so a
+// personal correction always wins without needing a second query/CASE.
+const findCompanyAlias = async (userId, rawName) => {
   try {
     const [rows] = await db.query(
-      'SELECT canonical_name FROM company_aliases WHERE raw_name = ? LIMIT 1',
-      [rawName]
+      'SELECT canonical_name FROM company_aliases WHERE user_id IN (?, 0) AND raw_name = ? ORDER BY user_id DESC LIMIT 1',
+      [userId, rawName]
     );
     return rows[0]?.canonical_name || null;
   } catch (err) {
@@ -53,11 +65,11 @@ const findCompanyAlias = async (rawName) => {
   }
 };
 
-const findRoleAlias = async (rawTitle) => {
+const findRoleAlias = async (userId, rawTitle) => {
   try {
     const [rows] = await db.query(
-      'SELECT canonical_title FROM role_aliases WHERE raw_title = ? LIMIT 1',
-      [rawTitle]
+      'SELECT canonical_title FROM role_aliases WHERE user_id IN (?, 0) AND raw_title = ? ORDER BY user_id DESC LIMIT 1',
+      [userId, rawTitle]
     );
     return rows[0]?.canonical_title || null;
   } catch (err) {
@@ -66,24 +78,50 @@ const findRoleAlias = async (rawTitle) => {
   }
 };
 
-const normalizeCompany = async (rawCompany) => {
+const normalizeCompany = async (userId, rawCompany) => {
   if (!rawCompany) return null;
 
   const trimmed = rawCompany.trim();
-  const aliased = await findCompanyAlias(trimmed);
+  const aliased = await findCompanyAlias(userId, trimmed);
   if (aliased) return aliased;
 
   return basicCleanup(trimmed);
 };
 
-const normalizeRole = async (rawRole) => {
+const normalizeRole = async (userId, rawRole) => {
   if (!rawRole) return null;
 
   const trimmed = rawRole.trim();
-  const aliased = await findRoleAlias(trimmed);
+  const aliased = await findRoleAlias(userId, trimmed);
   if (aliased) return aliased;
 
   return basicCleanup(trimmed);
 };
 
-module.exports = { normalizeCompany, normalizeRole };
+// Consumer 1 (ai-feedback-loop.md §5.1) — personal alias auto-write. Called
+// from applications.service.js the moment a user corrects a company/role
+// value that came from the AI. Always writes at the correcting user's own
+// user_id (never 0/global — promoting to global is a deliberate later/
+// manual step, §3.2), so future emails for THIS user normalize correctly
+// immediately, with zero risk to any other user's matching.
+const upsertCompanyAlias = async (userId, rawName, canonicalName) => {
+  if (!rawName || !canonicalName) return;
+  await db.query(
+    `INSERT INTO company_aliases (user_id, raw_name, canonical_name)
+     VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE canonical_name = VALUES(canonical_name)`,
+    [userId, rawName, canonicalName]
+  );
+};
+
+const upsertRoleAlias = async (userId, rawTitle, canonicalTitle) => {
+  if (!rawTitle || !canonicalTitle) return;
+  await db.query(
+    `INSERT INTO role_aliases (user_id, raw_title, canonical_title)
+     VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE canonical_title = VALUES(canonical_title)`,
+    [userId, rawTitle, canonicalTitle]
+  );
+};
+
+module.exports = { normalizeCompany, normalizeRole, upsertCompanyAlias, upsertRoleAlias };

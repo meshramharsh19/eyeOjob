@@ -50,6 +50,7 @@ describe('pipeline.repository.insertTimelineEvent (Phase 5 + dedupe)', () => {
       emailReceivedAt: new Date('2026-09-18T08:00:00Z'),
       confidence: 92,
       metadata: { source: 'ai', round: 1 },
+      appliedStatus: 'Interview',
     });
 
     expect(result).toEqual({ insertId: 1, wasInserted: true });
@@ -58,9 +59,10 @@ describe('pipeline.repository.insertTimelineEvent (Phase 5 + dedupe)', () => {
     expect(sql).toContain('email_received_at');
     expect(sql).toContain('confidence');
     expect(sql).toContain('metadata');
+    expect(sql).toContain('applied_status');
     expect(params).toEqual([
       5, EVENT_TYPES.INTERVIEW_SCHEDULED, expect.any(Date), 'Interview scheduled', 'msg_1',
-      null, null, expect.any(Date), 92, JSON.stringify({ source: 'ai', round: 1 }),
+      null, null, expect.any(Date), 92, JSON.stringify({ source: 'ai', round: 1 }), 'Interview',
     ]);
   });
 
@@ -79,6 +81,7 @@ describe('pipeline.repository.insertTimelineEvent (Phase 5 + dedupe)', () => {
     expect(params[7]).toBeNull(); // emailReceivedAt
     expect(params[8]).toBeNull(); // confidence
     expect(params[9]).toBeNull(); // metadata
+    expect(params[10]).toBeNull(); // appliedStatus
   });
 
   // Duplicate email processed twice must produce exactly one event: the

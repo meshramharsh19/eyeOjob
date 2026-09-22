@@ -15,6 +15,7 @@ export const ApplicationsTable = ({
   onAdd,
   onEdit,
   onDelete,
+  onVerify,
   onViewJourney,
   needsReviewOnly = false,
   onNeedsReviewOnlyChange,
@@ -169,6 +170,16 @@ export const ApplicationsTable = ({
                 )}
               </span>
             ) : null}
+            {review?.isReviewRequired && onVerify && (
+              <button
+                type="button"
+                onClick={() => onVerify(app)}
+                title="Confirm the AI-extracted details — applied date stays locked to the original email"
+                className="inline-flex items-center gap-1 rounded-md bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold text-white shadow-xs transition-colors hover:bg-indigo-700"
+              >
+                Verify Now
+              </button>
+            )}
           </div>
         );
       },

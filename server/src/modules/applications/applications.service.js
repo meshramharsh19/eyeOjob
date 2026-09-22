@@ -1,7 +1,19 @@
+const logger = require('../../config/logger');
 const { NotFoundError, BadRequestError, ConflictError } = require('../../errors');
 const applicationsRepository = require('./applications.repository');
 const { syncUserEmails, requestStop, forceStopStuckSync } = require('../../pipelines/email-pipeline');
 const { normalizeCompany, normalizeRole } = require('../../pipelines/email-pipeline/matching/normalization.service');
+const aiFeedbackService = require('../ai-feedback/aiFeedback.service');
+
+// AI Correction Feedback Loop (Project DOCs/ai-feedback-loop.md §2) — a
+// user edit only counts as a genuine "AI was wrong" signal when it's the
+// FIRST override of a value the AI itself produced. A manually-created
+// application has no AI baseline (source !== 'email'); an already-locked
+// application's next edit is a second human tweak, not a new disagreement.
+const isEligibleForCorrectionSignal = (application) =>
+  application.source === 'email' && !application.is_locked_by_user;
+
+const VALID_DELETE_REASONS = new Set(['not_a_job', 'duplicate', 'withdrawn', 'other']);
 
 const ALLOWED_STATUSES = new Set([
   'Applied',
@@ -100,8 +112,8 @@ const createManualApplication = async (userId, data = {}) => {
 
   // Normalization ensures the AI matcher can locate manual entries as legitimate candidates
   const [normalizedCompany, normalizedRole] = await Promise.all([
-    normalizeCompany(company),
-    normalizeRole(role),
+    normalizeCompany(userId, company),
+    normalizeRole(userId, role),
   ]);
 
   // As decided: manual create starts with is_locked_by_user = false (unless explicitly requested)
@@ -139,20 +151,27 @@ const updateManualApplication = async (id, userId, data = {}) => {
   const existing = await applicationsRepository.findByIdForUser(id, userId);
   if (!existing) throw new NotFoundError('Application not found');
 
+  // Captured BEFORE any mutation — this is what decides whether each
+  // changed field below is a genuine AI-correction signal (§2 of the
+  // feedback-loop doc). Once updates.isLockedByUser flips to 1 below, this
+  // application no longer qualifies for the NEXT edit's correction signal,
+  // which is exactly the intended "only the first override counts" rule.
+  const eligibleForSignal = isEligibleForCorrectionSignal(existing);
+
   const updates = {};
 
   if (data.company !== undefined) {
     const trimmed = data.company?.trim();
     if (!trimmed) throw new BadRequestError('Company name cannot be empty.');
     updates.company = trimmed;
-    updates.normalizedCompany = await normalizeCompany(trimmed);
+    updates.normalizedCompany = await normalizeCompany(userId, trimmed);
   }
 
   if (data.role !== undefined) {
     const trimmed = data.role?.trim();
     if (!trimmed) throw new BadRequestError('Role cannot be empty.');
     updates.role = trimmed;
-    updates.normalizedRole = await normalizeRole(trimmed);
+    updates.normalizedRole = await normalizeRole(userId, trimmed);
   }
 
   if (data.status !== undefined) {
@@ -180,6 +199,34 @@ const updateManualApplication = async (id, userId, data = {}) => {
 
   await applicationsRepository.updateApplication(id, userId, updates);
 
+  // AI Correction Feedback Loop (§2/§4) — fire-and-record, never fatal to
+  // the update itself. Each field is checked independently since a single
+  // edit can correct more than one field at once (e.g. status AND company
+  // in the same request).
+  if (eligibleForSignal) {
+    try {
+      if (updates.status !== undefined && updates.status !== existing.status) {
+        await aiFeedbackService.recordStatusCorrection({
+          userId, applicationId: id, existingStatus: existing.status, newStatus: updates.status,
+        });
+      }
+      if (updates.company !== undefined && updates.company !== existing.company) {
+        await aiFeedbackService.recordEntityCorrection({
+          userId, applicationId: id, field: 'company',
+          oldValue: existing.company, newValue: updates.company, newNormalizedValue: updates.normalizedCompany,
+        });
+      }
+      if (updates.role !== undefined && updates.role !== existing.role) {
+        await aiFeedbackService.recordEntityCorrection({
+          userId, applicationId: id, field: 'role',
+          oldValue: existing.role, newValue: updates.role, newNormalizedValue: updates.normalizedRole,
+        });
+      }
+    } catch (err) {
+      logger.error(`[applications.service] AI correction feedback recording failed for application ${id} (non-fatal, update already succeeded):`, err.message);
+    }
+  }
+
   // Generate audit trail in timeline
   let description = 'Application details updated by user.';
   if (data.status && data.status !== existing.status) {
@@ -198,7 +245,18 @@ const updateStatus = async (id, userId, { status, notes }) => {
   return updateManualApplication(id, userId, { status, notes });
 };
 
-const deleteApplication = async (id, userId) => {
+// AI Correction Feedback Loop (§2/§4) — `reason` is optional and, if
+// present, must be one of the known values; an unrecognized string is
+// rejected rather than silently ignored, so the UI can't drift out of sync
+// with what the backend actually understands. Only reason === 'not_a_job'
+// on a source === 'email' application emits a false_positive signal — every
+// other reason (duplicate/withdrawn/other) is a normal delete, not a
+// model-quality issue (§2's table).
+const deleteApplication = async (id, userId, { reason } = {}) => {
+  if (reason !== undefined && !VALID_DELETE_REASONS.has(reason)) {
+    throw new BadRequestError(`Invalid delete reason "${reason}". Allowed: ${Array.from(VALID_DELETE_REASONS).join(', ')}`);
+  }
+
   const existing = await applicationsRepository.findByIdForUser(id, userId);
   if (!existing) throw new NotFoundError('Application not found');
 
@@ -206,8 +264,18 @@ const deleteApplication = async (id, userId) => {
   await applicationsRepository.addTimelineEvent(
     id,
     'manual_delete',
-    `Application for ${existing.role} at ${existing.company} was removed by user.`
+    `Application for ${existing.role} at ${existing.company} was removed by user.${reason ? ` Reason: ${reason}.` : ''}`
   );
+
+  if (reason === 'not_a_job' && existing.source === 'email') {
+    try {
+      await aiFeedbackService.recordFalsePositive({
+        userId, applicationId: id, company: existing.company, role: existing.role,
+      });
+    } catch (err) {
+      logger.error(`[applications.service] AI correction feedback (false_positive) recording failed for application ${id} (non-fatal, delete already succeeded):`, err.message);
+    }
+  }
 
   return { success: true, message: 'Application deleted successfully' };
 };

@@ -18,6 +18,7 @@ const { normalizeCompany, normalizeRole } = require('./matching/normalization.se
 const { createSyncStats, timeIt, recordDrop, summarizeStats } = require('./pipeline.stats');
 const repository = require('./pipeline.repository');
 const notificationsService = require('../../modules/notifications/notifications.service');
+const aiFeedbackService = require('../../modules/ai-feedback/aiFeedback.service');
 const { mapStatusStringToEventType, mapEventTypeToStatus } = require('./eventTaxonomy');
 
 // ── Regex fallback: pull role from common phrasing when the AI misses it ──
@@ -193,10 +194,23 @@ const processEmail = async (gmail, userId, messageId, stats, threadLocks, isInit
   // Step 3b: AI extraction — vendor unknown, no parser yet, or the parser's result failed sanity check
   if (!extraction) {
     stats.aiCallCount++;
+    // AI Correction Feedback Loop (Project DOCs/ai-feedback-loop.md §5.2,
+    // Consumer 2) — bounded, this-user-only past corrections for this exact
+    // sender domain, if any exist. Failure here must never break extraction
+    // itself, so it's a best-effort lookup, not a hard dependency.
+    let fewShotExamples = [];
+    try {
+      fewShotExamples = await timeIt(stats, 'normalizeMs', () =>
+        aiFeedbackService.getFewShotExamples(userId, senderDomain)
+      );
+    } catch (err) {
+      logger.debug(`[pipeline.orchestrator] few-shot lookup failed (non-fatal) — ${err.message}`);
+    }
+
     let aiData;
     try {
       aiData = await timeIt(stats, 'aiExtractMs', () =>
-        aiGateway.extract(userId, subject, body, sender, stats, receivedAt)
+        aiGateway.extract(userId, subject, body, sender, stats, receivedAt, fewShotExamples)
       );
     } catch (err) {
       // BYOK hybrid AI (Project DOCs/BYOK.md, Section 3.4/5.4) — thrown by
@@ -277,8 +291,8 @@ const processEmail = async (gmail, userId, messageId, stats, threadLocks, isInit
   // Normalize company/role so matching never operates on raw, inconsistent strings
   const rawCompany = extraction.company || (isJobPlatformDomain(sender) ? null : resolveFallbackCompany(senderDomain, replyToDomain));
   const rawRole = extraction.role;
-  const normalizedCompany = await timeIt(stats, 'normalizeMs', () => normalizeCompany(rawCompany));
-  const normalizedRole = await timeIt(stats, 'normalizeMs', () => normalizeRole(rawRole));
+  const normalizedCompany = await timeIt(stats, 'normalizeMs', () => normalizeCompany(userId, rawCompany));
+  const normalizedRole = await timeIt(stats, 'normalizeMs', () => normalizeRole(userId, rawRole));
 
   // Step 3: Application matching — hard rules first, then weighted scoring
   // over candidates. eventType 'applied' signals a fresh application start,
@@ -323,6 +337,15 @@ const processEmail = async (gmail, userId, messageId, stats, threadLocks, isInit
     const isLocked = Boolean(matchResult.application.is_locked_by_user);
     const newStatus = mapStatusToEnum(extraction.status) || mapEventTypeToStatus(granularEventType);
 
+    // AI Correction Feedback Loop (Project DOCs/ai-feedback-loop.md §3.1) —
+    // computed once, BEFORE the insert below, so the same decision drives
+    // both timeline_events.applied_status and the branch logic that
+    // follows. This is the exact signal the feedback loop's culprit-email
+    // resolution depends on: NULL means this row is correspondence only and
+    // must never be mistaken for the email that actually set a status the
+    // user later corrects.
+    const willApplyStatus = !isLocked && shouldApplyStatus(matchResult.application.status, newStatus);
+
     // Phase 4 (CRITICAL FIX): timeline writing is now fully decoupled from
     // the status-progression guard below. EVERY valid lifecycle event gets
     // written to timeline_events — including when the mapped coarse status
@@ -342,6 +365,7 @@ const processEmail = async (gmail, userId, messageId, stats, threadLocks, isInit
       emailReceivedAt: receivedAt,
       confidence: finalConfidence,
       metadata: eventMetadata,
+      appliedStatus: willApplyStatus ? newStatus : null,
     }));
 
     if (isLocked) {
@@ -349,7 +373,7 @@ const processEmail = async (gmail, userId, messageId, stats, threadLocks, isInit
       // Do not mutate status, company, or role — the event above is still
       // recorded so the email correspondence remains visible.
       logger.debug(`[pipeline.orchestrator] application ${applicationId} locked by user — event recorded, status left at "${matchResult.application.status}"`);
-    } else if (shouldApplyStatus(matchResult.application.status, newStatus)) {
+    } else if (willApplyStatus) {
       await timeIt(stats, 'dbWriteMs', () => repository.updateApplicationStatus(applicationId, newStatus, finalConfidence));
 
       // Pipeline-detected status change on an existing application — notify
@@ -437,6 +461,10 @@ const processEmail = async (gmail, userId, messageId, stats, threadLocks, isInit
       emailReceivedAt: receivedAt,
       confidence: finalConfidence,
       metadata: eventMetadata,
+      // The first event on a brand-new application always IS the one that
+      // set its initial status (ai-feedback-loop.md §3.1's "New application"
+      // case) — there's no prior status for this to be correspondence about.
+      appliedStatus: newApplicationStatus,
     }));
 
     // Scenario B: a new application can be created directly at an already-

@@ -32,7 +32,7 @@ const update = async (req, res) => {
 };
 
 const remove = async (req, res) => {
-  const result = await applicationsService.deleteApplication(req.params.id, req.user.id);
+  const result = await applicationsService.deleteApplication(req.params.id, req.user.id, req.body);
   res.json(result);
 };
 

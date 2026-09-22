@@ -52,7 +52,7 @@ const resolveChain = async (userId) => {
 // connected provider in priority order; if all fail, throws so the caller
 // tags the email extraction_failed and (at the sync level) can notify the
 // user their connected keys are failing.
-const runByokChain = async (userId, userProviders, subject, body, sender, emailReceivedAt) => {
+const runByokChain = async (userId, userProviders, subject, body, sender, emailReceivedAt, fewShotExamples) => {
   let lastErr;
   for (const row of userProviders) {
     const adapter = adapters[row.provider];
@@ -64,7 +64,7 @@ const runByokChain = async (userId, userProviders, subject, body, sender, emailR
     try {
       const credential = encryptionService.decrypt(row.encrypted_credential);
       const { json, usage } = await withTimeout(
-        adapter.extract(credential, row.model, subject, body, sender, emailReceivedAt),
+        adapter.extract(credential, row.model, subject, body, sender, emailReceivedAt, fewShotExamples),
         BYOK_PROVIDER_TIMEOUT_MS,
         row.provider
       );
@@ -99,11 +99,15 @@ const runByokChain = async (userId, userProviders, subject, body, sender, emailR
 // Entry point used by pipeline.orchestrator.js in place of a direct
 // extractJobDetails() call. userId drives BYOK vs managed-tier resolution;
 // everything else matches extractJobDetails's existing signature.
-const extract = async (userId, subject, body, sender, stats, emailReceivedAt) => {
+// fewShotExamples: AI Correction Feedback Loop (Project DOCs/
+// ai-feedback-loop.md §5.2) — pre-fetched, bounded correction examples for
+// this sender; optional, defaults to none so every existing caller
+// (including tests) keeps working unchanged.
+const extract = async (userId, subject, body, sender, stats, emailReceivedAt, fewShotExamples = []) => {
   const resolution = await resolveChain(userId);
 
   if (resolution.source === 'BYOK') {
-    return runByokChain(userId, resolution.userProviders, subject, body, sender, emailReceivedAt);
+    return runByokChain(userId, resolution.userProviders, subject, body, sender, emailReceivedAt, fewShotExamples);
   }
 
   // MANAGED_FREE / MANAGED_UNLIMITED — reuse the existing, proven server
@@ -123,7 +127,7 @@ const extract = async (userId, subject, body, sender, stats, emailReceivedAt) =>
     ? Object.fromEntries(Object.entries(stats.aiProviderStats).map(([k, v]) => [k, { ...v }]))
     : {};
 
-  const result = await extractJobDetails(subject, body, sender, stats, emailReceivedAt);
+  const result = await extractJobDetails(subject, body, sender, stats, emailReceivedAt, fewShotExamples);
 
   if (stats) {
     for (const [providerName, after] of Object.entries(stats.aiProviderStats)) {

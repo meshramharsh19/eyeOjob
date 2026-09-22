@@ -3,7 +3,42 @@
 // provider adapter (server/src/modules/ai-providers/adapters/), so the
 // extraction behavior is identical regardless of whose API key runs it.
 
-const buildPrompt = (subject, body, sender, emailReceivedAt = null) => `
+// AI Correction Feedback Loop (Project DOCs/ai-feedback-loop.md §5.2) —
+// Consumer 2. `examples` are pre-fetched, already-bounded (max 2, see
+// aiFeedback.service.js's getFewShotExamples) structured records — never
+// freeform text a user typed. Rendered strictly as "here is one specific
+// past email and what it actually was", NEVER as a rule about the sender in
+// general: the same sender domain legitimately sends confirmations,
+// interviews, offers, AND rejections, so a blanket "emails from X mean Y"
+// instruction would misclassify the next real email of a different kind
+// from that same sender. This is the exact mistake flagged in review before
+// implementation — the wording below is deliberately per-example, not
+// per-sender.
+const formatFewShotSection = (examples) => {
+  if (!examples?.length) return '';
+
+  const blocks = examples.slice(0, 2).map((ex, i) => {
+    const snippet = (ex.inputSnippet || '').substring(0, 300).replace(/\s+/g, ' ').trim();
+    const correction = ex.fieldCorrected === 'false_positive'
+      ? `{"was_actually_a_job_email": false}`
+      : `{"${ex.fieldCorrected}": ${JSON.stringify(ex.correctValue)}}`;
+    return `Example ${i + 1} (one specific past email from this sender, NOT a rule about this sender in general):
+Input snippet: "${snippet}"
+This exact email was confirmed by the user to actually be: ${correction}`;
+  }).join('\n\n');
+
+  return `
+------------------------------------------------------------
+PAST CORRECTIONS FOR THIS SENDER (reference only — judge THIS email on its own content)
+------------------------------------------------------------
+
+The examples below are specific past emails this same sender previously sent, and what a human confirmed they actually were. They do NOT mean every email from this sender is the same thing — this sender may send confirmations, interviews, offers, and rejections. Use them only to calibrate wording/tone this sender uses, never to assume this new email's outcome.
+
+${blocks}
+`;
+};
+
+const buildPrompt = (subject, body, sender, emailReceivedAt = null, fewShotExamples = []) => `
 You are an expert AI email classifier and parser for a Job Application Tracker.
 
 Your job has two steps, in this order:
@@ -33,7 +68,7 @@ ${emailReceivedAt ? new Date(emailReceivedAt).toISOString() : 'unknown'}
 
 Body:
 ${body?.substring(0, 5000)}
-
+${formatFewShotSection(fewShotExamples)}
 ------------------------------------------------------------
 OUTPUT
 ------------------------------------------------------------
@@ -666,4 +701,4 @@ const cleanAndParse = (text) => {
   return JSON.parse(cleaned);
 };
 
-module.exports = { buildPrompt, cleanAndParse };
+module.exports = { buildPrompt, cleanAndParse, formatFewShotSection };

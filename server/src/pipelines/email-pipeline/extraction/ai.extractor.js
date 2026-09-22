@@ -310,8 +310,8 @@ const callWithRetry = async (call, prompt, label) => {
   }
 };
 
-const extractJobDetails = async (subject, body, sender, stats = null, emailReceivedAt = null) => {
-  const prompt = buildPrompt(subject, body, sender, emailReceivedAt);
+const extractJobDetails = async (subject, body, sender, stats = null, emailReceivedAt = null, fewShotExamples = []) => {
+  const prompt = buildPrompt(subject, body, sender, emailReceivedAt, fewShotExamples);
   // Seven no-card, daily-renewing (not one-time-credit) free tiers, in
   // requested order: Mistral -> Gemini -> Cohere -> Groq -> rest. Cerebras
   // stays out of this chain — it 402s until a card is added — but its call

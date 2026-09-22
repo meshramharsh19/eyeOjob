@@ -32,8 +32,13 @@ export const ApplicationModal = ({
   onClose,
   onSubmit,
   initialData = null,
-  mode = 'create', // 'create' | 'edit'
+  mode = 'create', // 'create' | 'edit' | 'verify'
 }) => {
+  // Editing an existing application (whether opened via the pencil icon or
+  // the "Verify Now" action) must never resend applied_date — see
+  // handleSubmit below for why round-tripping it through the date input is
+  // unsafe. Only a brand-new manual application gets a freely editable date.
+  const isVerifyMode = mode === 'edit' || mode === 'verify';
   const [formData, setFormData] = useState({
     company: '',
     role: '',
@@ -50,7 +55,7 @@ export const ApplicationModal = ({
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (initialData && mode === 'edit') {
+    if (initialData && (mode === 'edit' || mode === 'verify')) {
       const formattedDate = initialData.applied_date
         ? new Date(initialData.applied_date).toISOString().split('T')[0]
         : new Date().toISOString().split('T')[0];
@@ -106,8 +111,20 @@ export const ApplicationModal = ({
     setLoading(true);
     setError('');
 
+    // Verify mode never resends applied_date — the field's value came from
+    // a UTC toISOString() round-trip (see the effect above) which can drift
+    // by a day depending on the user's timezone. That's an acceptable
+    // display quirk, but resending it would silently overwrite the
+    // email-derived date with the drifted one on every "verify" save. The
+    // backend only touches applied_date when the key is present at all
+    // (applications.service.js updateManualApplication), so omitting the
+    // key entirely is what actually preserves the original date.
+    const payload = isVerifyMode
+      ? Object.fromEntries(Object.entries(formData).filter(([key]) => key !== 'applied_date'))
+      : formData;
+
     try {
-      await onSubmit(formData);
+      await onSubmit(payload);
       onClose();
     } catch (err) {
       setError(err.response?.data?.error || err.message || 'Operation failed. Please try again.');
@@ -134,12 +151,12 @@ export const ApplicationModal = ({
             </div>
             <div>
               <h3 className="font-display text-base font-bold text-[var(--text-primary)]">
-                {mode === 'create' ? 'Add Job Application' : 'Edit Application'}
+                {mode === 'create' ? 'Add Job Application' : 'Verify Application Details'}
               </h3>
               <p className="text-xs text-[var(--text-muted)]">
                 {mode === 'create'
                   ? 'Manually log a job application you applied to outside of Gmail'
-                  : 'Update application details or override status'}
+                  : 'Confirm the application details are correct. The applied date stays locked.'}
               </p>
             </div>
           </div>
@@ -251,17 +268,26 @@ export const ApplicationModal = ({
               />
             </div>
 
-            {/* Applied Date */}
+            {/* Applied Date — locked in verify mode; see handleSubmit for why */}
             <div>
               <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
                 Applied Date
+                {isVerifyMode && (
+                  <span className="ml-1 font-normal normal-case text-[var(--text-muted)]">
+                    (locked)
+                  </span>
+                )}
               </label>
               <input
                 type="date"
                 name="applied_date"
                 value={formData.applied_date}
                 onChange={handleChange}
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3.5 py-2 text-xs text-[var(--text-primary)] focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 transition-all cursor-pointer"
+                disabled={isVerifyMode}
+                title={isVerifyMode ? 'Locked — the original applied date is kept as-is on every edit.' : undefined}
+                className={`w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3.5 py-2 text-xs text-[var(--text-primary)] focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 transition-all ${
+                  isVerifyMode ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                }`}
               />
             </div>
           </div>
@@ -341,7 +367,7 @@ export const ApplicationModal = ({
               size="sm"
               loading={loading}
             >
-              {mode === 'create' ? 'Create Application' : 'Save Changes'}
+              {mode === 'create' ? 'Create Application' : 'Verify'}
             </Button>
           </div>
         </form>

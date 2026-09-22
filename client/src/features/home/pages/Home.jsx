@@ -72,7 +72,7 @@ export const Home = () => {
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState('create'); // 'create' | 'edit'
+  const [modalMode, setModalMode] = useState('create'); // 'create' | 'edit' | 'verify'
   const [selectedApp, setSelectedApp] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [appToDelete, setAppToDelete] = useState(null);
@@ -155,6 +155,12 @@ export const Home = () => {
 
   const handleOpenEdit = (app) => {
     setModalMode('edit');
+    setSelectedApp(app);
+    setIsModalOpen(true);
+  };
+
+  const handleOpenVerify = (app) => {
+    setModalMode('verify');
     setSelectedApp(app);
     setIsModalOpen(true);
   };
@@ -329,6 +335,7 @@ export const Home = () => {
                         applications={data.applications.slice(0, 5)}
                         onAdd={handleOpenCreate}
                         onEdit={handleOpenEdit}
+                        onVerify={handleOpenVerify}
                         onDelete={handleOpenDelete}
                         onViewJourney={handleViewJourney}
                       />
@@ -402,6 +409,7 @@ export const Home = () => {
                   applications={data.applications}
                   onAdd={handleOpenCreate}
                   onEdit={handleOpenEdit}
+                  onVerify={handleOpenVerify}
                   onDelete={handleOpenDelete}
                   onViewJourney={handleViewJourney}
                   needsReviewOnly={needsReviewOnly}
