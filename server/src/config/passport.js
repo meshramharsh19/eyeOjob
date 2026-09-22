@@ -26,9 +26,14 @@ passport.use(
         if (rows.length > 0) {
           // --- USER EXISTS: Update tokens & avatar ---
           user = rows[0];
+          // A returning deactivated user's Google identity matching this
+          // row IS the ownership proof (same trust level as a correct
+          // password) — reactivate in the same update rather than a
+          // separate step, and never create a new user row for them.
           await db.query(
             `UPDATE users
-             SET gmail_token = ?, refresh_token = COALESCE(?, refresh_token), avatar = ?, is_verified = 1, gmail_connected = 1
+             SET gmail_token = ?, refresh_token = COALESCE(?, refresh_token), avatar = ?, is_verified = 1, gmail_connected = 1,
+                 is_active = 1, deactivated_at = NULL
              WHERE id = ?`,
             [accessToken, refreshToken || null, avatar, user.id]
           );

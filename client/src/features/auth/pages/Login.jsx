@@ -29,7 +29,7 @@ const handleLogin = async (e) => {
   try {
     const res = await loginRequest(email, password);
     login(res.data.token, res.data.user);
-    navigate('/');
+    navigate('/', res.data.reactivated ? { state: { reactivated: true } } : undefined);
   } catch (err) {
     setError(err.response?.data?.error || 'Login failed');
   } finally {

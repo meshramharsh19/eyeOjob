@@ -1,0 +1,158 @@
+// Central data-driven provider registry — one source of truth for the BYOK
+// provider catalog (Section 7, Project DOCs/BYOK.md). Each entry's `id` must
+// match an adapter file in ../adapters/ and the `provider` column values
+// used in user_ai_providers.
+module.exports = {
+  groq: {
+    id: 'groq',
+    displayName: 'Groq',
+    tagline: 'Ultra-fast LPU inference engine',
+    description: 'Extremely fast inference with a generous daily free tier.',
+    setupUrl: 'https://console.groq.com/keys',
+    docsUrl: 'https://console.groq.com/docs/quickstart',
+    credentialType: 'api_key',
+    defaultModel: 'openai/gpt-oss-20b',
+    supportedModels: [
+      { id: 'openai/gpt-oss-20b', name: 'GPT OSS 20B (Recommended)', isDefault: true },
+      { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B Versatile' },
+    ],
+    setupInstructions: [
+      'Open the official Groq Console via the link above.',
+      'Sign in and navigate to "API Keys".',
+      'Click "Create API Key", name it "EyeOJob", and copy the key.',
+      'Return here, paste the key, and click "Test & Connect".',
+    ],
+  },
+  gemini: {
+    id: 'gemini',
+    displayName: 'Google Gemini',
+    tagline: 'Google AI Studio',
+    description: 'High accuracy with Google AI Studio free tier.',
+    setupUrl: 'https://aistudio.google.com/app/apikey',
+    docsUrl: 'https://ai.google.dev/gemini-api/docs',
+    credentialType: 'api_key',
+    defaultModel: 'gemini-flash-lite-latest',
+    supportedModels: [
+      { id: 'gemini-flash-lite-latest', name: 'Gemini Flash Lite (Recommended)', isDefault: true },
+      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
+    ],
+    setupInstructions: [
+      'Open Google AI Studio via the link above.',
+      'Click "Create API key" in a new or existing Google Cloud project.',
+      'Copy the generated key.',
+      'Return to EyeOJob, paste it below, and connect.',
+    ],
+  },
+  openrouter: {
+    id: 'openrouter',
+    displayName: 'OpenRouter',
+    tagline: 'Unified Multi-Model Gateway',
+    description: 'Access hundreds of open-source and proprietary models with one key.',
+    setupUrl: 'https://openrouter.ai/keys',
+    docsUrl: 'https://openrouter.ai/docs',
+    credentialType: 'api_key',
+    defaultModel: 'deepseek/deepseek-v4-flash-0731:free',
+    supportedModels: [
+      { id: 'deepseek/deepseek-v4-flash-0731:free', name: 'DeepSeek V4 Flash (Free, Recommended)', isDefault: true },
+      { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)' },
+    ],
+    setupInstructions: [
+      'Open the OpenRouter Keys page via the link above.',
+      'Create a new key.',
+      'Copy and paste it below.',
+    ],
+  },
+  xai: {
+    id: 'xai',
+    displayName: 'xAI / Grok',
+    tagline: 'xAI Developer Platform',
+    description: 'Grok models with a direct OpenAI-compatible API.',
+    setupUrl: 'https://console.x.ai',
+    docsUrl: 'https://docs.x.ai',
+    credentialType: 'api_key',
+    defaultModel: 'grok-2-mini',
+    supportedModels: [
+      { id: 'grok-2-mini', name: 'Grok 2 Mini (Recommended)', isDefault: true },
+      { id: 'grok-2', name: 'Grok 2' },
+    ],
+    setupInstructions: [
+      'Open the xAI Console via the link above.',
+      'Create an API key in your xAI organization.',
+      'Copy your key and paste it below.',
+    ],
+  },
+  huggingface: {
+    id: 'huggingface',
+    displayName: 'Hugging Face',
+    tagline: 'Serverless Inference Router',
+    description: 'Free serverless inference across hundreds of open models, no card required.',
+    setupUrl: 'https://huggingface.co/settings/tokens',
+    docsUrl: 'https://huggingface.co/docs/api-inference',
+    credentialType: 'api_key',
+    defaultModel: 'meta-llama/Llama-3.1-8B-Instruct',
+    supportedModels: [
+      { id: 'meta-llama/Llama-3.1-8B-Instruct', name: 'Llama 3.1 8B Instruct (Recommended)', isDefault: true },
+    ],
+    setupInstructions: [
+      'Open Hugging Face settings via the link above.',
+      'Click "New token", create a read-access token.',
+      'Copy and paste it below.',
+    ],
+  },
+  cohere: {
+    id: 'cohere',
+    displayName: 'Cohere',
+    tagline: 'Command Models',
+    description: 'Free trial key, ~100 requests/day, does not expire.',
+    setupUrl: 'https://dashboard.cohere.com/api-keys',
+    docsUrl: 'https://docs.cohere.com/',
+    credentialType: 'api_key',
+    defaultModel: 'command-r-08-2024',
+    supportedModels: [
+      { id: 'command-r-08-2024', name: 'Command R (Recommended)', isDefault: true },
+    ],
+    setupInstructions: [
+      'Open the Cohere dashboard via the link above.',
+      'Create a Trial API key (free, no card).',
+      'Copy and paste it below.',
+    ],
+  },
+  cloudflare: {
+    id: 'cloudflare',
+    displayName: 'Cloudflare Workers AI',
+    tagline: 'Permanent free tier',
+    description: '10,000 neurons/day, resets daily, no card. Needs BOTH your Account ID and an API token.',
+    setupUrl: 'https://dash.cloudflare.com',
+    docsUrl: 'https://developers.cloudflare.com/workers-ai/',
+    credentialType: 'composite_account_token',
+    defaultModel: '@cf/meta/llama-3.1-8b-instruct',
+    supportedModels: [
+      { id: '@cf/meta/llama-3.1-8b-instruct', name: 'Llama 3.1 8B Instruct (Recommended)', isDefault: true },
+    ],
+    setupInstructions: [
+      'Open the Cloudflare dashboard via the link above.',
+      'Copy your Account ID (right sidebar of the Workers AI overview page).',
+      'Create an API token with Workers AI read/edit permission.',
+      'Paste BOTH below as accountId:apiToken (colon-separated, no spaces) — Cloudflare is the one provider here that needs two values in one field.',
+    ],
+  },
+  mistral: {
+    id: 'mistral',
+    displayName: 'Mistral AI',
+    tagline: 'Mistral La Plateforme',
+    description: 'High performance European open & commercial models.',
+    setupUrl: 'https://console.mistral.ai/api-keys/',
+    docsUrl: 'https://docs.mistral.ai/',
+    credentialType: 'api_key',
+    defaultModel: 'mistral-small-latest',
+    supportedModels: [
+      { id: 'mistral-small-latest', name: 'Mistral Small (Recommended)', isDefault: true },
+      { id: 'open-mistral-nemo', name: 'Mistral NeMo' },
+    ],
+    setupInstructions: [
+      'Sign in to Mistral La Plateforme via the link above.',
+      'Generate an API key under API Keys.',
+      'Copy and paste it below.',
+    ],
+  },
+};

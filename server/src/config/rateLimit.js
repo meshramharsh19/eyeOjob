@@ -55,4 +55,18 @@ module.exports = {
     windowMs: minutes(parseIntEnv(process.env.AUTH_LOGIN_FAILURE_WINDOW_MINUTES, 15)),
     max: parseIntEnv(process.env.AUTH_LOGIN_FAILURE_LIMIT, 5),
   },
+
+  // BYOK AI provider endpoints (Project DOCs/BYOK.md, Section 11 threat
+  // model) — /connect and /validate both trigger a live call to an external
+  // provider API on our dime (their rate limit, our latency), so both need
+  // their own cap independent of the general auth limiters. /test re-tests
+  // an already-stored key and gets the same treatment for the same reason.
+  aiProviderConnect: {
+    windowMs: minutes(parseIntEnv(process.env.AI_PROVIDER_CONNECT_RATE_WINDOW_MINUTES, 1)),
+    max: parseIntEnv(process.env.AI_PROVIDER_CONNECT_RATE_LIMIT, 5),
+  },
+  aiProviderValidate: {
+    windowMs: minutes(parseIntEnv(process.env.AI_PROVIDER_VALIDATE_RATE_WINDOW_MINUTES, 1)),
+    max: parseIntEnv(process.env.AI_PROVIDER_VALIDATE_RATE_LIMIT, 5),
+  },
 };

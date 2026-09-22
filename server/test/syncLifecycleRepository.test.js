@@ -99,14 +99,14 @@ describe('completeSyncNeedsReconnect', () => {
 });
 
 describe('getSchedulerEligibleUserIds', () => {
-  test('excludes stopped and needs_reconnect, and excludes a non-stale syncing row, from the query', async () => {
+  test('excludes stopped, needs_reconnect, and needs_upgrade_or_key, and excludes a non-stale syncing row, from the query', async () => {
     db.query.mockResolvedValueOnce([[{ id: 1 }, { id: 3 }]]);
 
     const ids = await repository.getSchedulerEligibleUserIds(15);
 
     expect(ids).toEqual([1, 3]);
     const [sql, params] = db.query.mock.calls[0];
-    expect(sql).toContain("NOT IN ('stopped', 'needs_reconnect')");
+    expect(sql).toContain("NOT IN ('stopped', 'needs_reconnect', 'needs_upgrade_or_key')");
     expect(sql).toContain("s.status != 'syncing'");
     expect(params).toEqual([15]);
   });

@@ -22,6 +22,7 @@ router.post('/verify-otp', verifyOtpLimiter, asyncHandler(controller.verifyOtp))
 router.post('/resend-otp', resendOtpLimiter, asyncHandler(controller.resendOtp));
 router.post('/login', loginLimiter, asyncHandler(controller.login));
 router.get('/me', authMiddleware, asyncHandler(controller.getMe));
+router.post('/deactivate', authMiddleware, asyncHandler(controller.deactivate));
 
 // Dead-code preserved from the original implementation: the endpoint that populated
 // this token store was commented out, so this route always returns "expired or invalid".

@@ -3,6 +3,7 @@ const { routes: authRoutes } = require('../modules/auth');
 const { routes: applicationRoutes } = require('../modules/applications');
 const { routes: recordsRoutes } = require('../modules/records');
 const { routes: notificationRoutes } = require('../modules/notifications');
+const { routes: aiProviderRoutes } = require('../modules/ai-providers');
 const { routes: gmailRoutes } = require('../pipelines/email-pipeline');
 
 const router = express.Router();
@@ -12,5 +13,6 @@ router.use('/gmail', gmailRoutes);
 router.use('/jobs', applicationRoutes);
 router.use('/records', recordsRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/ai', aiProviderRoutes);
 
 module.exports = router;

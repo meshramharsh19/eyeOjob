@@ -213,6 +213,23 @@ const completeSyncNeedsReconnect = async (userId, errorCode, errorMessage) => {
   );
 };
 
+// BYOK hybrid AI (Project DOCs/BYOK.md) — distinct from completeSyncFailure
+// and completeSyncNeedsReconnect. Fires when a user has no BYOK key
+// connected and has exhausted their monthly free-tier AI quota. Like
+// needs_reconnect, this can never self-resolve on a plain retry — the user
+// must either connect a key or wait for the month to roll over — so it's
+// excluded from scheduler eligibility below rather than retried every tick.
+const completeSyncNeedsUpgradeOrKey = async (userId, processedCount) => {
+  await db.query(
+    `UPDATE sync_status
+     SET status = 'needs_upgrade_or_key', last_sync_finished_at = NOW(),
+         total_synced = total_synced + ?,
+         last_error_code = 'QUOTA_EXCEEDED', last_error_message = 'Monthly free AI quota exceeded'
+     WHERE user_id = ?`,
+    [processedCount, userId]
+  );
+};
+
 // User-initiated stop, distinct from completeSyncFailure — this wasn't an
 // error, and last_history_id is deliberately left untouched here (unlike
 // completeSyncSuccess) so the next sync still sees whatever messages were
@@ -246,9 +263,15 @@ const forceStopStuckSync = async (userId) => {
 };
 
 // Users the scheduler may automatically sync right now. Excludes:
-//  - 'stopped' / 'needs_reconnect' — retrying these automatically is either
-//    against the user's wishes (stopped) or guaranteed to fail until they
-//    act (needs_reconnect); both just get skipped every tick, not retried.
+//  - 'stopped' / 'needs_reconnect' / 'needs_upgrade_or_key' — retrying these
+//    automatically is either against the user's wishes (stopped) or
+//    guaranteed to fail until they act (needs_reconnect: must reconnect
+//    Gmail; needs_upgrade_or_key: must connect a BYOK key, upgrade, or wait
+//    for the monthly quota to roll over) — all three just get skipped every
+//    tick, not retried. A user auto-unblocks the moment they connect a key
+//    (resolveChain returns BYOK before quota is even checked) or the month
+//    rolls over — either way their next manual/scheduled sync attempt just
+//    works, no separate "un-flag" step needed.
 //  - a genuinely in-progress 'syncing' row — but only while it's fresh; a
 //    'syncing' row older than staleTimeoutMinutes is stuck (crashed
 //    process) and stays eligible, mirroring startSync()'s own reclaim rule
@@ -260,7 +283,7 @@ const getSchedulerEligibleUserIds = async (staleTimeoutMinutes) => {
      FROM users u
      LEFT JOIN sync_status s ON s.user_id = u.id
      WHERE u.gmail_connected = 1
-       AND (s.status IS NULL OR s.status NOT IN ('stopped', 'needs_reconnect'))
+       AND (s.status IS NULL OR s.status NOT IN ('stopped', 'needs_reconnect', 'needs_upgrade_or_key'))
        AND (s.status IS NULL OR s.status != 'syncing'
             OR s.last_sync_started_at < DATE_SUB(NOW(), INTERVAL ? MINUTE))`,
     [staleTimeoutMinutes]
@@ -283,6 +306,7 @@ module.exports = {
   completeSyncSuccess,
   completeSyncFailure,
   completeSyncNeedsReconnect,
+  completeSyncNeedsUpgradeOrKey,
   completeSyncStopped,
   forceStopStuckSync,
   getSchedulerEligibleUserIds,

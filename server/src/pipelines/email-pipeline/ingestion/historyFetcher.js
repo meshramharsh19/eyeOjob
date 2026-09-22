@@ -5,6 +5,20 @@
 // fetchMessageIdsIncremental below. maxTotal guards against an unbounded
 // first sync on a very active inbox; raise it if you need more than 500 in
 // one pass.
+//
+// BYOK free-tier quota note (Project DOCs/BYOK.md, Section 6.5): a full/
+// first sync is already bounded to `newer_than:30d` and maxTotal=100 — NOT
+// a user's entire mailbox history — so the "years of backfill exhausts the
+// monthly quota" scenario the design doc originally worried about is much
+// smaller in practice than assumed there. Gmail's messages.list with no
+// explicit sort returns results in reverse-chronological order (newest
+// first) by default, which this function relies on as-is (no client-side
+// re-sort) — so even within that 100-message cap, the AI-needed emails a
+// user is most likely to care about get processed before older ones would.
+// This reliance on Gmail's default order is NOT verified against a live
+// OAuth session as part of this change — if quota exhaustion on a first
+// sync turns out to be a real problem in practice, confirm this ordering
+// holds for a real large-inbox account before trusting it further.
 const fetchMessageIdsFull = async (gmail, { maxTotal = 100 } = {}) => {
   const messageIds = [];
   let pageToken;

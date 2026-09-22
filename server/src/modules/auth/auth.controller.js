@@ -27,6 +27,11 @@ const getMe = async (req, res) => {
   res.json({ user });
 };
 
+const deactivate = async (req, res) => {
+  await authService.deactivate(req.user.id);
+  res.json({ message: 'Account deactivated. Log in again anytime to reactivate it.' });
+};
+
 const forgotPassword = async (req, res) => {
   await authService.forgotPassword(req.body);
   // Generic response regardless of whether the account exists — see
@@ -72,6 +77,7 @@ module.exports = {
   resendOtp,
   login,
   getMe,
+  deactivate,
   forgotPassword,
   resendResetOtp,
   verifyResetOtp,

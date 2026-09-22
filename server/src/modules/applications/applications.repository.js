@@ -4,10 +4,14 @@ const findAllByUser = async (userId) => {
   const [rows] = await db.query(
     `SELECT a.*,
       (SELECT COUNT(*) FROM timeline_events WHERE application_id = a.id) as event_count,
+      COALESCE(
+        (SELECT MAX(event_date) FROM timeline_events WHERE application_id = a.id AND is_dismissed = 0),
+        a.updated_at
+      ) as last_event_at,
       DATEDIFF(NOW(), a.status_changed_at) as days_in_status
      FROM applications a
      WHERE a.user_id = ? AND a.deleted_at IS NULL
-     ORDER BY a.updated_at DESC`,
+     ORDER BY last_event_at DESC`,
     [userId]
   );
   return rows;

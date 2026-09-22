@@ -174,8 +174,14 @@ export const ApplicationsTable = ({
       },
     },
     {
+      // Hidden until a real desktop monitor width (2xl/1536px) — at 14"
+      // laptop resolutions (1366/1440px) this 6th column was tight enough
+      // to force the table into horizontal scroll; the count is also
+      // visible in the journey drawer, so it's the safe one to drop first.
       header: 'Events',
       key: 'event_count',
+      className: 'hidden 2xl:table-cell',
+      cellClassName: 'hidden 2xl:table-cell',
       render: (app) => (
         <span className="inline-flex items-center rounded-lg bg-[var(--background-alt)] px-2 py-0.5 text-xs font-semibold text-[var(--text-secondary)]">
           {app.event_count ?? 0} events
@@ -184,11 +190,14 @@ export const ApplicationsTable = ({
     },
     {
       header: 'Last Updated',
-      key: 'updated_at',
+      key: 'last_event_at',
       render: (app) => (
         <span className="text-xs text-[var(--text-muted)] whitespace-nowrap">
-          {app.updated_at
-            ? new Date(app.updated_at).toLocaleDateString(undefined, {
+          {/* The real-world date of the most recent email/event (application
+              confirmed, interview invite, etc.) — not when the sync run
+              happened to write the row, which is what updated_at reflects. */}
+          {(app.last_event_at || app.updated_at)
+            ? new Date(app.last_event_at || app.updated_at).toLocaleDateString(undefined, {
                 month: 'short',
                 day: 'numeric',
                 year: 'numeric',

@@ -14,6 +14,8 @@ import {
   X,
   Square,
   Sparkles,
+  Cpu,
+  Settings,
 } from 'lucide-react';
 import { useAuth } from '../features/auth';
 import { useTheme } from '../shared/context/ThemeContext';
@@ -96,6 +98,8 @@ export const DashboardLayout = ({
     { id: 'timeline', label: 'Timeline', icon: Clock },
     { id: 'emails', label: 'Processed Emails', icon: Mail },
     { id: 'aliases', label: 'Role Aliases', icon: Sliders },
+    { id: 'ai-providers', label: 'AI Providers', icon: Cpu },
+    { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   return (
@@ -225,23 +229,25 @@ export const DashboardLayout = ({
       {/* Main Content Area — offset by the fixed sidebar's width on desktop */}
       <div className="flex flex-1 flex-col overflow-x-hidden lg:ml-64">
         {/* Top App Header */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[var(--border)] bg-[var(--surface)]/80 px-4 backdrop-blur-md sm:px-6">
-          <div className="flex items-center gap-3">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--surface)]/80 px-3 backdrop-blur-md sm:px-6">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="rounded-xl border border-[var(--border)] p-2 text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] lg:hidden"
+              className="shrink-0 rounded-xl border border-[var(--border)] p-2 text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] lg:hidden"
             >
               <Menu className="h-5 w-5" />
             </button>
-            <div>
-              <h1 className="font-display text-base font-bold capitalize text-[var(--text-primary)] sm:text-lg">
+            <div className="min-w-0">
+              <h1 className="truncate font-display text-base font-bold capitalize text-[var(--text-primary)] sm:text-lg">
                 {activeTab === 'overview' ? 'Dashboard Overview' : activeTab}
               </h1>
             </div>
           </div>
 
-          {/* Action Tools */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          {/* Action Tools — button labels collapse to icon-only below `sm`
+              (~640px) so this row never overflows on a 320–360px phone;
+              the label reappears at `sm` and up. */}
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
             {syncBanner && (
               <span
                 className="hidden text-xs font-medium md:inline-block"
@@ -268,9 +274,10 @@ export const DashboardLayout = ({
               onClick={handleSyncJobs}
               disabled={showSyncing}
               icon={RefreshCw}
-              className={showSyncing ? '[&_svg]:animate-spin' : ''}
+              title={showSyncing ? 'Syncing...' : 'Sync Gmail'}
+              className={`px-2.5 sm:px-3 ${showSyncing ? '[&_svg]:animate-spin' : ''}`}
             >
-              {showSyncing ? 'Syncing...' : 'Sync Gmail'}
+              <span className="hidden sm:inline">{showSyncing ? 'Syncing...' : 'Sync Gmail'}</span>
             </Button>
 
             {/* Stop Syncing Button (shown during active sync) */}
@@ -281,8 +288,10 @@ export const DashboardLayout = ({
                 onClick={handleStopSync}
                 disabled={stopping}
                 icon={Square}
+                title={stopping ? 'Stopping...' : 'Stop'}
+                className="px-2.5 sm:px-3"
               >
-                {stopping ? 'Stopping...' : 'Stop'}
+                <span className="hidden sm:inline">{stopping ? 'Stopping...' : 'Stop'}</span>
               </Button>
             )}
 
@@ -291,16 +300,21 @@ export const DashboardLayout = ({
               type="button"
               onClick={toggleTheme}
               title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] shadow-[var(--shadow-xs)] transition-colors hover:border-[var(--border-hover)] hover:text-[var(--text-primary)]"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] shadow-[var(--shadow-xs)] transition-colors hover:border-[var(--border-hover)] hover:text-[var(--text-primary)]"
             >
               {isDark ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-slate-700" />}
             </button>
           </div>
         </header>
 
-        {/* Main Body */}
+        {/* Main Body — the content column widens in a few extra steps on
+            large/4K/ultrawide displays (see @theme in index.css) instead of
+            staying capped at 1280px forever, but still never goes full-bleed
+            so line lengths and card grids stay readable at 5K+. */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
-          <div className="mx-auto max-w-7xl">{children}</div>
+          <div className="mx-auto max-w-7xl 3xl:max-w-[100rem] 4xl:max-w-[120rem] 5xl:max-w-[130rem]">
+            {children}
+          </div>
         </main>
       </div>
     </div>

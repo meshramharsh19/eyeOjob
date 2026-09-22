@@ -3,7 +3,7 @@ import { CheckCheck, Sparkles } from 'lucide-react';
 import NotificationItem from './NotificationItem';
 
 export const NotificationDropdown = ({ notifications, unreadCount, loading, onItemClick, onMarkAllRead }) => (
-  <div className="absolute right-0 top-12 z-50 w-80 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl backdrop-blur-lg sm:w-96">
+  <div className="absolute right-0 top-12 z-50 w-[calc(100vw-1.5rem)] max-w-80 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl backdrop-blur-lg sm:w-96 sm:max-w-none">
     <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
       <span className="flex items-center gap-2 text-sm font-bold text-[var(--text-primary)]">
         Notifications

@@ -6,7 +6,8 @@ const { getGmailClient, extractEmailParts } = require('./ingestion/gmailClient')
 const { fetchMessageIdsFull, fetchMessageIdsIncremental } = require('./ingestion/historyFetcher');
 const { classifyEmail, isJobPlatformDomain } = require('./classification/classifier.service');
 const { isLifecycleIntent } = require('./classification/intentTypes');
-const { extractJobDetails } = require('./extraction/ai.extractor');
+const aiGateway = require('../../modules/ai-providers/ai-providers.gateway');
+const { QuotaExceededError } = require('../../modules/ai-providers/errors/ai.errors');
 const { getVendor } = require('./extraction/ats.registry');
 const { parseWithVendorRules, passesSanityCheck } = require('./extraction/ats.parsers');
 const { calculateConfidence } = require('./scoring/confidence.service');
@@ -192,9 +193,32 @@ const processEmail = async (gmail, userId, messageId, stats, threadLocks, isInit
   // Step 3b: AI extraction — vendor unknown, no parser yet, or the parser's result failed sanity check
   if (!extraction) {
     stats.aiCallCount++;
-    const aiData = await timeIt(stats, 'aiExtractMs', () =>
-      extractJobDetails(subject, body, sender, stats, receivedAt)
-    );
+    let aiData;
+    try {
+      aiData = await timeIt(stats, 'aiExtractMs', () =>
+        aiGateway.extract(userId, subject, body, sender, stats, receivedAt)
+      );
+    } catch (err) {
+      // BYOK hybrid AI (Project DOCs/BYOK.md, Section 3.4/5.4) — thrown by
+      // aiGateway.resolveChain() *before* any provider call, distinct from a
+      // provider actually failing. This email specifically needs AI (no ATS
+      // parser matched), so it's tagged 'needs_quota' rather than
+      // 'extraction_failed' — it must only be retried once the monthly quota
+      // resets or a BYOK key is connected, never retried pointlessly on the
+      // next sync. The sync itself keeps processing remaining messages
+      // (ATS-parser hits, non-job emails still cost 0 AI calls); the flag
+      // set here tells syncUserEmails to conclude as needs_upgrade_or_key
+      // instead of success once the whole batch is done.
+      if (err instanceof QuotaExceededError) {
+        await timeIt(stats, 'dbWriteMs', () => repository.updateProcessedEmailClassification(
+          processedEmailId, 'needs_quota', ruleResult.confidence
+        ));
+        stats.quotaExceeded = true;
+        recordDrop(stats, 'needs_quota');
+        return null;
+      }
+      throw err;
+    }
 
     // AI sometimes misses role even when it's clearly stated in prose — try a regex fallback
     if (isLifecycleIntent(aiData.intent) && !aiData.role) {
@@ -623,6 +647,18 @@ const syncUserEmails = async (userId) => {
     // Current historyId — every future sync starts from here
     const profile = await gmail.users.getProfile({ userId: 'me' });
     const newHistoryId = profile.data.historyId;
+
+    if (stats.quotaExceeded) {
+      // At least one email needed AI extraction and hit the monthly free
+      // quota with no BYOK key connected (Section 3.4/6.4, BYOK.md).
+      // last_history_id still advances — the messages that WERE processed
+      // (including any resolved deterministically with 0 AI calls) are
+      // genuinely done; only the quota-blocked ones are tagged for retry.
+      await repository.completeSyncSuccess(userId, newHistoryId, processed);
+      await repository.completeSyncNeedsUpgradeOrKey(userId, 0);
+      await aiGateway.notifyQuotaOnce(userId, aiGateway.currentUtcYearMonth());
+      return { processed, jobsFound, needsUpgradeOrKey: true, timings };
+    }
 
     await repository.completeSyncSuccess(userId, newHistoryId, processed);
 

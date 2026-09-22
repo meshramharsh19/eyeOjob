@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Briefcase,
   Clock,
@@ -7,10 +8,13 @@ import {
   ArrowRight,
   Zap,
   Plus,
+  Cpu,
+  Settings,
 } from 'lucide-react';
 import DashboardLayout from '../../../layouts/DashboardLayout';
 import Toast from '../../../shared/components/Toast';
 import { ImportantUpdatesBanner } from '../../notifications';
+import { AiProvidersPanel, MonthlyUsageBanner } from '../../ai-providers';
 import SectionCard from '../components/SectionCard';
 import StatsCards from '../components/StatsCards';
 import ApplicationsTable from '../components/ApplicationsTable';
@@ -21,6 +25,7 @@ import RoleAliasesTable from '../components/RoleAliasesTable';
 import ApplicationModal from '../components/ApplicationModal';
 import ApplicationDetailDrawer from '../components/ApplicationDetailDrawer';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
+import DeactivateAccountCard from '../components/DeactivateAccountCard';
 import { Button, Tabs } from '../../../shared/ui';
 import {
   getApplications,
@@ -29,6 +34,7 @@ import {
   getSyncStatus,
   getTimelineEvents,
   getRoleAliases,
+  getSelf,
   createApplication,
   updateApplication,
   deleteApplication,
@@ -42,6 +48,7 @@ export const Home = () => {
     timelineEvents: [],
     syncStatus: null,
     roleAliases: [],
+    self: null,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -49,6 +56,19 @@ export const Home = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [needsReviewOnly, setNeedsReviewOnly] = useState(false);
   const prevSyncStatusRef = useRef(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Reactivation toast — Login.jsx passes this via router state after a
+  // deactivated account logs back in. Cleared from history state immediately
+  // so it doesn't re-fire on refresh/back-navigation.
+  useEffect(() => {
+    if (location.state?.reactivated) {
+      setToast({ message: '✓ Welcome back — your account has been reactivated with all your previous data.', variant: 'success' });
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -62,7 +82,7 @@ export const Home = () => {
     setLoading(true);
     setError(null);
 
-    const [stats, applications, processedEmails, timelineEvents, syncStatus, roleAliases] =
+    const [stats, applications, processedEmails, timelineEvents, syncStatus, roleAliases, self] =
       await Promise.allSettled([
         getApplicationStats(),
         getApplications(),
@@ -70,6 +90,7 @@ export const Home = () => {
         getTimelineEvents(),
         getSyncStatus(),
         getRoleAliases(),
+        getSelf(),
       ]);
 
     setData({
@@ -79,6 +100,7 @@ export const Home = () => {
       timelineEvents: timelineEvents.status === 'fulfilled' ? timelineEvents.value : [],
       syncStatus: syncStatus.status === 'fulfilled' ? syncStatus.value : null,
       roleAliases: roleAliases.status === 'fulfilled' ? roleAliases.value : [],
+      self: self.status === 'fulfilled' ? self.value : null,
     });
 
     const allFailed = [stats, applications, processedEmails, timelineEvents, syncStatus, roleAliases].every(
@@ -114,6 +136,10 @@ export const Home = () => {
       failed: { message: data.syncStatus.last_error_message || 'Gmail sync failed.', variant: 'error' },
       needs_reconnect: {
         message: data.syncStatus.last_error_message || 'Gmail sync stopped — please reconnect your Gmail account.',
+        variant: 'error',
+      },
+      needs_upgrade_or_key: {
+        message: 'Monthly free AI limit reached — connect your own API key or upgrade to keep syncing.',
         variant: 'error',
       },
     };
@@ -198,6 +224,8 @@ export const Home = () => {
       icon: Sliders,
       badge: data.roleAliases?.length,
     },
+    { id: 'ai-providers', label: 'AI Providers', icon: Cpu },
+    { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   return (
@@ -254,6 +282,9 @@ export const Home = () => {
                 {/* Important Job Updates — same notifications data as the header bell */}
                 <ImportantUpdatesBanner onViewApplication={handleSelectApplicationById} />
 
+                {/* Free-tier AI quota warning — silent unless near/at the cap */}
+                <MonthlyUsageBanner onManageProviders={() => setActiveTab('ai-providers')} />
+
                 {/* Stats Summary Bar */}
                 <StatsCards
                   stats={data.stats}
@@ -271,6 +302,7 @@ export const Home = () => {
                 >
                   <SyncStatusCard
                     syncStatus={data.syncStatus}
+                    gmailConnected={data.self ? Boolean(data.self.gmail_connected) : null}
                     onRetried={loadDashboard}
                   />
                 </SectionCard>
@@ -408,6 +440,28 @@ export const Home = () => {
                 icon={Sliders}
               >
                 <RoleAliasesTable roleAliases={data.roleAliases} />
+              </SectionCard>
+            )}
+
+            {/* AI PROVIDERS VIEW */}
+            {activeTab === 'ai-providers' && (
+              <SectionCard
+                title="AI Providers"
+                subtitle="Connect your own AI provider keys for unlimited extraction, or use the free monthly allowance"
+                icon={Cpu}
+              >
+                <AiProvidersPanel />
+              </SectionCard>
+            )}
+
+            {/* SETTINGS VIEW */}
+            {activeTab === 'settings' && (
+              <SectionCard
+                title="Account Settings"
+                subtitle="Manage your account and data"
+                icon={Settings}
+              >
+                <DeactivateAccountCard />
               </SectionCard>
             )}
           </>

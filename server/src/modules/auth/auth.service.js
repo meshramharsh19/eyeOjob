@@ -86,13 +86,32 @@ const login = async ({ email, password }) => {
 
   await loginFailureRepository.reset(email);
 
+  // Password already verified above — that's the ownership proof this
+  // account needs to come back from a soft deactivation. Reactivating here
+  // (rather than a separate endpoint) means a returning user just logs in
+  // normally and their existing user_id/data becomes visible again; no new
+  // account is ever created.
+  let reactivated = false;
+  if (!user.is_active) {
+    await authRepository.reactivateUser(user.id);
+    reactivated = true;
+  }
+
   const token = jwt.sign(
     { id: user.id, email: user.email, name: user.name },
     env.jwt.secret,
     { expiresIn: env.jwt.expiresIn }
   );
 
-  return { token, user: { id: user.id, name: user.name, email: user.email, avatar: user.avatar } };
+  return {
+    token,
+    user: { id: user.id, name: user.name, email: user.email, avatar: user.avatar },
+    reactivated,
+  };
+};
+
+const deactivate = async (userId) => {
+  await authRepository.deactivateUser(userId);
 };
 
 const getMe = async (userId) => {
@@ -169,4 +188,5 @@ module.exports = {
   resendResetOtp,
   verifyResetOtp,
   resetPassword,
+  deactivate,
 };

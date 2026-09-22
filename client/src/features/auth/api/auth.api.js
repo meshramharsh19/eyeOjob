@@ -17,4 +17,6 @@ export const resendResetOtp = (email) => api.post('/auth/resend-reset-otp', { em
 
 export const resetPassword = (email, password) => api.post('/auth/reset-password', { email, password });
 
+export const deactivateAccount = () => api.post('/auth/deactivate');
+
 export const googleLoginUrl = `${API_URL}/auth/google`;

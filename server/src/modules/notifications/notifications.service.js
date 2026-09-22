@@ -98,6 +98,28 @@ const notifyEventType = async (
   }
 };
 
+// BYOK hybrid AI (Project DOCs/BYOK.md) — fired when a user's monthly free
+// AI quota is exhausted and no BYOK key is connected. Debounced by the
+// caller (ai-providers.gateway.js notifyQuotaOnce, keyed off
+// user_ai_monthly_usage.quota_notified) so this never fires more than once
+// per user per month even though sync attempts keep getting blocked.
+const notifyQuotaExceeded = async ({ userId }) => {
+  try {
+    return await repository.insert({
+      userId,
+      applicationId: null,
+      emailMsgId: null,
+      eventType: 'quota_exceeded',
+      severity: 'warning',
+      title: 'Monthly AI limit reached',
+      body: 'Connect your own AI provider key for unlimited syncing, or upgrade your plan.',
+    });
+  } catch (err) {
+    logger.error(`[notifications.service] failed to create quota notification for user ${userId}:`, err.message);
+    return null;
+  }
+};
+
 const listForUser = async (userId, pagination) => repository.findByUser(userId, pagination);
 
 const getUnreadCount = async (userId) => repository.getUnreadCount(userId);
@@ -106,4 +128,7 @@ const markRead = async (id, userId) => repository.markRead(id, userId);
 
 const markAllRead = async (userId) => repository.markAllRead(userId);
 
-module.exports = { notifyStatusEvent, notifyEventType, listForUser, getUnreadCount, markRead, markAllRead };
+module.exports = {
+  notifyStatusEvent, notifyEventType, notifyQuotaExceeded,
+  listForUser, getUnreadCount, markRead, markAllRead,
+};

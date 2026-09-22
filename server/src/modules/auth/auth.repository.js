@@ -21,4 +21,14 @@ const updatePassword = async (userId, hashedPassword) => {
   await db.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, userId]);
 };
 
-module.exports = { findByEmail, findPublicById, createUser, updatePassword };
+const deactivateUser = async (userId) => {
+  await db.query('UPDATE users SET is_active = 0, deactivated_at = NOW() WHERE id = ?', [userId]);
+};
+
+const reactivateUser = async (userId) => {
+  await db.query('UPDATE users SET is_active = 1, deactivated_at = NULL WHERE id = ?', [userId]);
+};
+
+module.exports = {
+  findByEmail, findPublicById, createUser, updatePassword, deactivateUser, reactivateUser,
+};

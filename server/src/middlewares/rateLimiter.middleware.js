@@ -1,4 +1,5 @@
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = rateLimit;
 const rateLimitConfig = require('../config/rateLimit');
 
 // One named limiter per sensitive auth endpoint (see routes/auth.routes.js),
@@ -14,13 +15,21 @@ const rateLimitHandler = (req, res) => {
   res.status(429).json({ error: 'Too many requests. Please try again later.' });
 };
 
-const buildLimiter = ({ windowMs, max }) => rateLimit({
+const buildLimiter = ({ windowMs, max }, keyGenerator) => rateLimit({
   windowMs,
   max,
   standardHeaders: true, // adds RateLimit-Limit / -Remaining / -Reset headers
   legacyHeaders: false,
   handler: rateLimitHandler,
+  ...(keyGenerator ? { keyGenerator } : {}),
 });
+
+// These two sit behind authMiddleware (unlike every limiter above, which
+// guards pre-login endpoints where only the IP is known) — keying by user id
+// instead of IP means one NAT'd office/campus IP can't exhaust a shared
+// bucket across unrelated accounts, and a single account can't dodge its own
+// cap by rotating IPs.
+const byUserThenIp = (req) => (req.user?.id ? `user:${req.user.id}` : ipKeyGenerator(req.ip));
 
 module.exports = {
   loginLimiter: buildLimiter(rateLimitConfig.login),
@@ -31,6 +40,8 @@ module.exports = {
   resendResetOtpLimiter: buildLimiter(rateLimitConfig.resendResetOtp),
   verifyResetOtpLimiter: buildLimiter(rateLimitConfig.verifyResetOtp),
   resetPasswordLimiter: buildLimiter(rateLimitConfig.resetPassword),
+  aiProviderConnectLimiter: buildLimiter(rateLimitConfig.aiProviderConnect, byUserThenIp),
+  aiProviderValidateLimiter: buildLimiter(rateLimitConfig.aiProviderValidate, byUserThenIp),
   // Exposed for tests (see test/rateLimiter.test.js) so limiter behavior can
   // be verified with small/fast windows without waiting out real config values.
   buildLimiter,
