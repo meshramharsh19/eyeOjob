@@ -51,8 +51,6 @@ Thumbs.db
 *.tmp
 *.temp
 
-# npm lock generated in root (optional)
-package-lock.json
 
 # Ignore local uploads if any
 uploads/

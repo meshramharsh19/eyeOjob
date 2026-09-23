@@ -1,11 +1,21 @@
-FROM node:20-alpine
+FROM node:20-alpine AS deps
+WORKDIR /app
+RUN npm install -g npm@11
 
+COPY package.json package-lock.json ./
+COPY server/package.json ./server/
+COPY client/package.json ./client/
+RUN npm ci --omit=dev --workspace=server
+
+FROM node:20-alpine
 WORKDIR /app
 
-COPY server/package*.json ./
-RUN npm ci --omit=dev
+COPY --from=deps --chown=node:node /app/node_modules ./node_modules
+COPY --chown=node:node server/ ./server/
 
-COPY server/ ./
+WORKDIR /app/server
+USER node
 
 EXPOSE 5000
+
 CMD ["node", "src/server.js"]

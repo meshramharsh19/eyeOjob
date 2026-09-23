@@ -3,13 +3,19 @@ services:
     image: mysql:8.0
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: eyeOjob
+      MYSQL_DATABASE: eyeojob
       MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./DB/eyeojob.sql:/docker-entrypoint-initdb.d/eyeojob.sql:ro
+      - ./db_backup/eyeojob_final_20260909_001926_with_sync_status.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
 
   server:
     build:
@@ -23,12 +29,15 @@ services:
     ports:
       - "5000:5000"
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
 
   client:
     build:
       context: .
       dockerfile: docker/Dockerfile.client
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:5000}
     restart: unless-stopped
     ports:
       - "5173:80"
