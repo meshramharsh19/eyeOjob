@@ -20,6 +20,26 @@ describe('mapSyncError', () => {
     expect(result.statusCode).toBe(401);
   });
 
+  test('maps decryption failure on legacy plaintext tokens to GMAIL_AUTH_EXPIRED, 401', () => {
+    const err = new Error('Malformed encrypted credential — expected iv:ciphertext:tag');
+    const result = mapSyncError(err);
+    expect(result).toEqual({
+      code: 'GMAIL_AUTH_EXPIRED',
+      message: 'Google authentication has expired. Please reconnect your Gmail account.',
+      statusCode: 401,
+    });
+  });
+
+  test('maps corrupted ciphertext or auth-tag mismatch to GMAIL_AUTH_EXPIRED, 401', () => {
+    const err = new Error('Unsupported state or unable to authenticate data');
+    const result = mapSyncError(err);
+    expect(result).toEqual({
+      code: 'GMAIL_AUTH_EXPIRED',
+      message: 'Google authentication has expired. Please reconnect your Gmail account.',
+      statusCode: 401,
+    });
+  });
+
   test('maps a 429 response status to GMAIL_RATE_LIMITED, 429', () => {
     const err = new Error('Too Many Requests');
     err.response = { status: 429 };

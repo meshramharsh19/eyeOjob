@@ -37,6 +37,32 @@ describe('syncUserEmails — failure routing', () => {
     expect(repository.completeSyncFailure).not.toHaveBeenCalled();
   });
 
+  test('a legacy plaintext token (fails decryption) sets needs_reconnect, not failed', async () => {
+    repository.getGmailCredentials.mockRejectedValue(
+      new Error('Malformed encrypted credential — expected iv:ciphertext:tag')
+    );
+
+    await expect(syncUserEmails(42)).rejects.toThrow();
+
+    expect(repository.completeSyncNeedsReconnect).toHaveBeenCalledWith(
+      42, 'GMAIL_AUTH_EXPIRED', expect.stringContaining('reconnect')
+    );
+    expect(repository.completeSyncFailure).not.toHaveBeenCalled();
+  });
+
+  test('a corrupted encrypted credential (auth-tag mismatch) sets needs_reconnect, not failed', async () => {
+    repository.getGmailCredentials.mockRejectedValue(
+      new Error('Unsupported state or unable to authenticate data')
+    );
+
+    await expect(syncUserEmails(42)).rejects.toThrow();
+
+    expect(repository.completeSyncNeedsReconnect).toHaveBeenCalledWith(
+      42, 'GMAIL_AUTH_EXPIRED', expect.stringContaining('reconnect')
+    );
+    expect(repository.completeSyncFailure).not.toHaveBeenCalled();
+  });
+
   test('no Gmail connection at all sets needs_reconnect, not failed', async () => {
     repository.getGmailCredentials.mockResolvedValue(null); // no gmail_token on the user row
 

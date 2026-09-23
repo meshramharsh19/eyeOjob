@@ -10,6 +10,13 @@
 //     each other and of the general endpoints
 
 jest.mock('../src/modules/ai-providers/ai-providers.service');
+// authMiddleware checks is_active on every request (see
+// middlewares/auth.middleware.js) — mock the DB it queries so these tests
+// exercise auth/rate-limiting behavior without needing a real MySQL
+// connection or real user rows for the arbitrary ids used below.
+jest.mock('../src/config/database', () => ({
+  query: jest.fn().mockResolvedValue([[{ is_active: 1 }]]),
+}));
 
 const jwt = require('jsonwebtoken');
 const express = require('express');

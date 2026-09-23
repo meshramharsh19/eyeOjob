@@ -78,6 +78,7 @@
   --status-offer: #10b981;
   --status-rejected: #ef4444;
   --status-ghosted: #64748b;
+  --status-closed: #78716c;
   --status-oa: #8b5cf6;
   --status-hr: #ec4899;
   --status-final: #a855f7;
@@ -137,6 +138,7 @@
   --status-offer: #34d399;
   --status-rejected: #f87171;
   --status-ghosted: #94a3b8;
+  --status-closed: #a8a29e;
   --status-oa: #a78bfa;
   --status-hr: #f472b6;
   --status-final: #c084fc;

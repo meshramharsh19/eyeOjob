@@ -10,6 +10,7 @@ jest.mock('../src/modules/auth/auth.repository', () => ({
   findPublicById: jest.fn(),
   createUser: jest.fn(),
   updatePassword: jest.fn(),
+  reactivateUser: jest.fn(),
 }));
 jest.mock('../src/modules/auth/otp.repository', () => ({
   upsertSignupOtp: jest.fn(),
@@ -46,6 +47,7 @@ const VERIFIED_USER = {
   name: 'Test User',
   password: 'hashed-password',
   is_verified: 1,
+  is_active: 1,
   avatar: null,
 };
 
@@ -54,6 +56,7 @@ beforeEach(() => {
   loginFailureRepository.find.mockResolvedValue(null);
   loginFailureRepository.recordFailure.mockResolvedValue(1);
   loginFailureRepository.reset.mockResolvedValue();
+  authRepository.reactivateUser.mockResolvedValue();
 });
 
 describe('auth.service login — account enumeration', () => {

@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const express = require('express');
 const passport = require('passport');
 const env = require('../../config/env');
@@ -11,6 +12,7 @@ const {
   resendResetOtpLimiter,
   verifyResetOtpLimiter,
   resetPasswordLimiter,
+  oauthExchangeLimiter,
 } = require('../../middlewares/rateLimiter.middleware');
 const { asyncHandler } = require('../../utils');
 const controller = require('./auth.controller');
@@ -21,21 +23,9 @@ router.post('/register', registerLimiter, asyncHandler(controller.register));
 router.post('/verify-otp', verifyOtpLimiter, asyncHandler(controller.verifyOtp));
 router.post('/resend-otp', resendOtpLimiter, asyncHandler(controller.resendOtp));
 router.post('/login', loginLimiter, asyncHandler(controller.login));
+router.post('/oauth/exchange', oauthExchangeLimiter, asyncHandler(controller.exchangeOAuthCode));
 router.get('/me', authMiddleware, asyncHandler(controller.getMe));
 router.post('/deactivate', authMiddleware, asyncHandler(controller.deactivate));
-
-// Dead-code preserved from the original implementation: the endpoint that populated
-// this token store was commented out, so this route always returns "expired or invalid".
-// Kept as-is (not resurrected) since it's outside the scope of this restructure.
-const resetTokenStore = new Map();
-router.get('/verify-reset-token', (req, res) => {
-  const { token } = req.query;
-  const stored = resetTokenStore.get(token);
-  if (!stored || Date.now() > stored.expiresAt) {
-    return res.status(400).json({ error: 'Reset link expired or invalid' });
-  }
-  res.json({ email: stored.email, valid: true });
-});
 
 router.post('/forgot-password', forgotPasswordLimiter, asyncHandler(controller.forgotPassword));
 router.post('/resend-reset-otp', resendResetOtpLimiter, asyncHandler(controller.resendResetOtp));
@@ -43,8 +33,25 @@ router.post('/verify-reset-otp', verifyResetOtpLimiter, asyncHandler(controller.
 router.post('/reset-password', resetPasswordLimiter, asyncHandler(controller.resetPassword));
 
 // 1. Redirect to Google
-router.get(
-  '/google',
+// Guards against OAuth login CSRF (an attacker tricking a victim's browser
+// into completing a Google login the attacker initiated, silently binding
+// the victim's session to the attacker's account). We run passport with
+// { session: false } (JWT-based auth), so its default session-backed state
+// store isn't available — instead we mint our own random `state`, bind it to
+// this browser via a short-lived httpOnly cookie, and require the value
+// Google echoes back on /google/callback to match that cookie.
+const OAUTH_STATE_COOKIE = 'oauth_state';
+const OAUTH_STATE_TTL_MS = 5 * 60 * 1000;
+
+router.get('/google', (req, res, next) => {
+  const state = crypto.randomBytes(24).toString('hex');
+  res.cookie(OAUTH_STATE_COOKIE, state, {
+    httpOnly: true,
+    secure: env.nodeEnv === 'production',
+    sameSite: 'lax',
+    maxAge: OAUTH_STATE_TTL_MS,
+  });
+
   passport.authenticate('google', {
     scope: [
       'profile',
@@ -53,12 +60,21 @@ router.get(
     ],
     accessType: 'offline',
     prompt: 'consent',
-  })
-);
+    state,
+  })(req, res, next);
+});
 
 // 2. Google OAuth Callback
 router.get(
   '/google/callback',
+  (req, res, next) => {
+    const cookieState = req.cookies?.[OAUTH_STATE_COOKIE];
+    res.clearCookie(OAUTH_STATE_COOKIE);
+    if (!cookieState || cookieState !== req.query.state) {
+      return res.redirect(`${env.clientUrl}/login?error=auth_failed`);
+    }
+    next();
+  },
   passport.authenticate('google', { session: false, failureRedirect: `${env.clientUrl}/login?error=auth_failed` }),
   controller.googleCallback
 );

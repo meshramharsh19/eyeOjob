@@ -25,6 +25,7 @@ const ALLOWED_STATUSES = new Set([
   'Rejected',
   'Withdrawn',
   'Ghosted',
+  'Closed',
 ]);
 
 const triggerSync = async (userId) => syncUserEmails(userId);
@@ -37,7 +38,7 @@ const stopSync = async (userId) => {
 };
 
 const STUCK_STATUS_THRESHOLD_DAYS = 14;
-const TERMINAL_STATUSES = new Set(['Offer', 'Rejected', 'Withdrawn', 'Ghosted']);
+const TERMINAL_STATUSES = new Set(['Offer', 'Rejected', 'Withdrawn', 'Ghosted', 'Closed']);
 
 const computeNeedsReview = (application) => {
   const lowConfidence = application.verification_status === 'needs_review';
@@ -71,8 +72,9 @@ const listForUser = async (userId) => {
 
 // "Awaiting Update" (spec §4): presentation-layer-only — computed here so it
 // ships to the client as a plain boolean/label, but NEVER persisted as a
-// status. Silence is never inferred as Rejected/Withdrawn/Ghosted; this is
-// purely "no status change in a while and the application is still open".
+// status. Silence is never inferred as Rejected/Withdrawn/Ghosted/Closed;
+// this is purely "no status change in a while and the application is still
+// open".
 const AWAITING_UPDATE_THRESHOLD_DAYS = 14;
 
 const computeAwaitingUpdate = (application) => {

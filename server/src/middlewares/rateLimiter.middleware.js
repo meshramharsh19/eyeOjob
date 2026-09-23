@@ -40,6 +40,7 @@ module.exports = {
   resendResetOtpLimiter: buildLimiter(rateLimitConfig.resendResetOtp),
   verifyResetOtpLimiter: buildLimiter(rateLimitConfig.verifyResetOtp),
   resetPasswordLimiter: buildLimiter(rateLimitConfig.resetPassword),
+  oauthExchangeLimiter: buildLimiter(rateLimitConfig.oauthExchange),
   aiProviderConnectLimiter: buildLimiter(rateLimitConfig.aiProviderConnect, byUserThenIp),
   aiProviderValidateLimiter: buildLimiter(rateLimitConfig.aiProviderValidate, byUserThenIp),
   // Exposed for tests (see test/rateLimiter.test.js) so limiter behavior can

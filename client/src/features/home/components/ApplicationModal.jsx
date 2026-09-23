@@ -12,6 +12,7 @@ const STATUS_OPTIONS = [
   'Rejected',
   'Withdrawn',
   'Ghosted',
+  'Closed',
 ];
 
 const PLATFORM_OPTIONS = [

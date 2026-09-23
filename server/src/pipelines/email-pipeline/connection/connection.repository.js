@@ -1,11 +1,14 @@
 const db = require('../../../config/database');
+const { encrypt } = require('../../../utils/crypto.util');
 
 const saveGmailTokens = async (userId, { accessToken, refreshToken }) => {
+  // Google only returns a refresh_token on first consent — COALESCE keeps
+  // the existing one on later reconnects instead of wiping it with NULL.
   await db.query(
     `UPDATE users
-     SET gmail_token = ?, refresh_token = ?, gmail_connected = 1
+     SET gmail_token = ?, refresh_token = COALESCE(?, refresh_token), gmail_connected = 1
      WHERE id = ?`,
-    [accessToken, refreshToken, userId]
+    [encrypt(accessToken), refreshToken ? encrypt(refreshToken) : null, userId]
   );
 };
 

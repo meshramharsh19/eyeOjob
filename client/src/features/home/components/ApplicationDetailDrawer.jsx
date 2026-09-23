@@ -13,12 +13,12 @@ const EVENT_TYPE_OPTIONS = [
   'OFFER_RECEIVED', 'OFFER_ACCEPTED', 'OFFER_DECLINED', 'REJECTED', 'WITHDRAWN', 'MANUAL_MILESTONE',
 ];
 
-const TERMINAL_STATUSES = new Set(['Offer', 'Rejected', 'Withdrawn', 'Ghosted']);
+const TERMINAL_STATUSES = new Set(['Offer', 'Rejected', 'Withdrawn', 'Ghosted', 'Closed']);
 
 // Presentation-only "Awaiting Update" — computed here (and mirrored by the
 // server's getWithTimeline response for consistency) purely for display.
 // Never written back as a stored status; silence is never inferred as
-// Rejected/Withdrawn/Ghosted.
+// Rejected/Withdrawn/Ghosted/Closed.
 const isAwaitingUpdate = (app) => {
   if (!app) return false;
   if (app.awaitingUpdate !== undefined) return app.awaitingUpdate;

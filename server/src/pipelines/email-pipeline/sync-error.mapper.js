@@ -27,6 +27,20 @@ const mapSyncError = (err) => {
     };
   }
 
+  // Thrown by crypto.util.js#decrypt when a stored token can't be decrypted
+  // (pre-encryption plaintext left over from before this was added, a
+  // corrupted value, or a GCM auth-tag mismatch). Treating this as an
+  // UNKNOWN_ERROR would leave sync_status stuck at 'failed' instead of
+  // 'needs_reconnect' — the scheduler would keep re-picking up this user
+  // every run, hit the same decrypt failure, and spam logs forever.
+  if (/Malformed encrypted credential|Unsupported state or unable to authenticate data/i.test(message)) {
+    return {
+      code: 'GMAIL_AUTH_EXPIRED',
+      message: 'Google authentication has expired. Please reconnect your Gmail account.',
+      statusCode: 401,
+    };
+  }
+
   if (httpStatus === 429) {
     return {
       code: 'GMAIL_RATE_LIMITED',

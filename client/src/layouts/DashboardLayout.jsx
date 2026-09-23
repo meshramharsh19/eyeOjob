@@ -14,8 +14,7 @@ import {
   X,
   Square,
   Sparkles,
-  Cpu,
-  Settings,
+  ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '../features/auth';
 import { useTheme } from '../shared/context/ThemeContext';
@@ -57,6 +56,13 @@ export const DashboardLayout = ({
     setSyncing(true);
     setStopping(false);
     setSyncBanner(null);
+    // /jobs/sync blocks until the whole sync finishes (or is stopped), so
+    // without this the dashboard's sync-status polling (Home.jsx, gated on
+    // syncStatus.status === 'syncing') never gets a first 'syncing' reading
+    // to key off — it only refetches once this request settles, i.e. after
+    // the entire sync is already done. Kicking a refetch here lets that
+    // polling loop pick up mid-sync and keep the rest of the UI live.
+    onSynced?.();
     try {
       const { data } = await api.post('/jobs/sync');
       setSyncBanner({ type: 'success', text: data?.message || 'Gmail sync finished successfully.' });
@@ -87,19 +93,27 @@ export const DashboardLayout = ({
       setStopping(false);
       return;
     }
-    if (!syncing) {
-      setTimeout(() => onSynced?.(), 1000);
-    }
+    // Don't wait on the original /jobs/sync request to settle before
+    // reflecting the stop — the backend has already flagged the sync to
+    // halt, but that in-flight request can take a while to actually return
+    // (it only breaks its loop cooperatively). Clear the UI now and let the
+    // next status refresh confirm it, instead of leaving the button stuck
+    // on "Syncing..."/"Stopping..." until the page is manually reloaded.
+    // handleSyncJobs's own `finally` will still fire later and is a no-op.
+    setSyncing(false);
+    setStopping(false);
+    onSynced?.();
   };
 
+  // AI Providers and Settings deliberately live inside the Profile page now
+  // (opened via the user card in the footer below), not as top-level nav —
+  // they're account-level config, not day-to-day navigation.
   const navItems = [
     { id: 'overview', label: 'Overview', icon: Zap },
     { id: 'applications', label: 'Applications', icon: Briefcase },
     { id: 'timeline', label: 'Timeline', icon: Clock },
     { id: 'emails', label: 'Processed Emails', icon: Mail },
     { id: 'aliases', label: 'Role Aliases', icon: Sliders },
-    { id: 'ai-providers', label: 'AI Providers', icon: Cpu },
-    { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   return (
@@ -198,14 +212,28 @@ export const DashboardLayout = ({
           })}
         </nav>
 
-        {/* User Account / Footer */}
+        {/* User Account / Footer — the card itself opens the Profile page
+            (which now also hosts AI Providers + Settings); Logout stays a
+            separate control so it isn't a misclick away from Profile. */}
         <div className="border-t border-[var(--border)] p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 overflow-hidden">
+          <div
+            className={`flex items-center justify-between rounded-xl transition-colors ${
+              activeTab === 'profile' ? 'bg-indigo-600/10' : 'hover:bg-[var(--background-alt)]'
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('profile');
+                setSidebarOpen(false);
+              }}
+              title="Open your profile"
+              className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden rounded-xl py-1.5 pl-1.5 pr-1 text-left"
+            >
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 font-display text-xs font-bold text-white shadow-sm">
                 {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-semibold text-[var(--text-primary)]">
                   {user?.name || user?.email?.split('@')[0] || 'Member'}
                 </p>
@@ -213,12 +241,13 @@ export const DashboardLayout = ({
                   {user?.email || 'Logged in'}
                 </p>
               </div>
-            </div>
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]" />
+            </button>
 
             <button
               onClick={handleLogout}
               title="Log out"
-              className="rounded-lg p-2 text-[var(--text-muted)] transition-colors hover:bg-rose-500/10 hover:text-rose-500"
+              className="mr-1.5 shrink-0 rounded-lg p-2 text-[var(--text-muted)] transition-colors hover:bg-rose-500/10 hover:text-rose-500"
             >
               <LogOut className="h-4 w-4" />
             </button>

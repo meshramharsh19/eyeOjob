@@ -516,7 +516,13 @@ const STATUS_RANK = {
   'Applied': 0, 'OA': 1, 'Interview': 2, 'HR Round': 2,
   'Final Round': 3, 'Offer': 4, 'Rejected': 4, 'Withdrawn': 4,
 };
-const TERMINAL_STATUSES = new Set(['Rejected', 'Withdrawn', 'Offer']);
+// Ghosted/Closed can never be produced by mapStatusToEnum (no email ever
+// says either of those) but both are legitimate CURRENT statuses a later,
+// unrelated email could otherwise stomp on via shouldApplyStatus's
+// current-status check below — included here so a manually-closed or
+// silently-ghosted application stays put once it lands there, same as
+// Rejected/Withdrawn/Offer already did.
+const TERMINAL_STATUSES = new Set(['Rejected', 'Withdrawn', 'Offer', 'Ghosted', 'Closed']);
 
 // Decide whether a newly-matched email's status should actually overwrite
 // the application's current one.

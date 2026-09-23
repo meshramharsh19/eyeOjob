@@ -26,6 +26,11 @@ const STATUS_VARIANTS = {
     bg: 'rgba(100, 116, 139, 0.12)',
     border: 'rgba(100, 116, 139, 0.25)',
   },
+  Closed: {
+    color: 'var(--status-closed)',
+    bg: 'rgba(120, 113, 108, 0.12)',
+    border: 'rgba(120, 113, 108, 0.25)',
+  },
   'Online Assessment': {
     color: 'var(--status-oa)',
     bg: 'rgba(139, 92, 246, 0.12)',

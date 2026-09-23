@@ -230,8 +230,9 @@ export const Home = () => {
       icon: Sliders,
       badge: data.roleAliases?.length,
     },
-    { id: 'ai-providers', label: 'AI Providers', icon: Cpu },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    // AI Providers and Settings are deliberately NOT here — they moved into
+    // the Profile page (opened via the sidebar's user card), not the
+    // day-to-day tab bar.
   ];
 
   return (
@@ -289,7 +290,7 @@ export const Home = () => {
                 <ImportantUpdatesBanner onViewApplication={handleSelectApplicationById} />
 
                 {/* Free-tier AI quota warning — silent unless near/at the cap */}
-                <MonthlyUsageBanner onManageProviders={() => setActiveTab('ai-providers')} />
+                <MonthlyUsageBanner onManageProviders={() => setActiveTab('profile')} />
 
                 {/* Stats Summary Bar */}
                 <StatsCards
@@ -451,26 +452,49 @@ export const Home = () => {
               </SectionCard>
             )}
 
-            {/* AI PROVIDERS VIEW */}
-            {activeTab === 'ai-providers' && (
-              <SectionCard
-                title="AI Providers"
-                subtitle="Connect your own AI provider keys for unlimited extraction, or use the free monthly allowance"
-                icon={Cpu}
-              >
-                <AiProvidersPanel />
-              </SectionCard>
-            )}
+            {/* PROFILE VIEW — reached via the sidebar's user card, not the
+                tab bar. Hosts identity, AI Providers, and Settings together
+                since they're all account-level config, not daily-use tabs. */}
+            {activeTab === 'profile' && (
+              <div className="space-y-6">
+                {/* Identity header */}
+                <div className="flex items-center gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-[var(--shadow-xs)]">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 font-display text-xl font-bold text-white shadow-md">
+                    {data.self?.avatar ? (
+                      <img src={data.self.avatar} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      data.self?.name?.[0]?.toUpperCase() || data.self?.email?.[0]?.toUpperCase() || 'U'
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="truncate font-display text-lg font-bold text-[var(--text-primary)]">
+                      {data.self?.name || data.self?.email?.split('@')[0] || 'Member'}
+                    </h2>
+                    <p className="truncate text-sm text-[var(--text-secondary)]">{data.self?.email}</p>
+                    {data.self?.created_at && (
+                      <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                        Member since {new Date(data.self.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+                      </p>
+                    )}
+                  </div>
+                </div>
 
-            {/* SETTINGS VIEW */}
-            {activeTab === 'settings' && (
-              <SectionCard
-                title="Account Settings"
-                subtitle="Manage your account and data"
-                icon={Settings}
-              >
-                <DeactivateAccountCard />
-              </SectionCard>
+                <SectionCard
+                  title="AI Providers"
+                  subtitle="Connect your own AI provider keys for unlimited extraction, or use the free monthly allowance"
+                  icon={Cpu}
+                >
+                  <AiProvidersPanel />
+                </SectionCard>
+
+                <SectionCard
+                  title="Account Settings"
+                  subtitle="Manage your account and data"
+                  icon={Settings}
+                >
+                  <DeactivateAccountCard />
+                </SectionCard>
+              </div>
             )}
           </>
         )}

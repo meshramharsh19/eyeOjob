@@ -2,6 +2,7 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const db = require('./database');
 const env = require('./env');
+const { encrypt } = require('../utils/crypto.util');
 
 passport.use(
   new GoogleStrategy(
@@ -35,16 +36,15 @@ passport.use(
              SET gmail_token = ?, refresh_token = COALESCE(?, refresh_token), avatar = ?, is_verified = 1, gmail_connected = 1,
                  is_active = 1, deactivated_at = NULL
              WHERE id = ?`,
-            [accessToken, refreshToken || null, avatar, user.id]
+            [encrypt(accessToken), refreshToken ? encrypt(refreshToken) : null, avatar, user.id]
           );
           user.avatar = avatar;
-          user.gmail_token = accessToken;
         } else {
           // --- NEW USER: Register user into DB ---
           const [result] = await db.query(
             `INSERT INTO users (email, name, password, is_verified, avatar, gmail_token, refresh_token, gmail_connected)
              VALUES (?, ?, NULL, 1, ?, ?, ?, 1)`,
-            [email, name, avatar, accessToken, refreshToken || null]
+            [email, name, avatar, encrypt(accessToken), refreshToken ? encrypt(refreshToken) : null]
           );
 
           user = {

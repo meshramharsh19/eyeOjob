@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { ExternalLink, ArrowUp, ArrowDown, Trash2, RefreshCw, KeyRound, CheckCircle2, AlertTriangle } from 'lucide-react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { ExternalLink, ArrowUp, ArrowDown, Trash2, RefreshCw, KeyRound, CheckCircle2, AlertTriangle, ChevronDown } from 'lucide-react';
 import { Card, CardHeader, CardBody, Button, Badge } from '../../../shared/ui';
 import {
   getProviderCatalog,
@@ -25,53 +25,69 @@ const STATUS_BADGE = {
 
 // One connected provider's row in the personal fallback chain — up/down
 // arrows reorder rather than drag-and-drop, keeping this dependency-free.
-const ConnectedProviderRow = ({ provider, catalogEntry, isFirst, isLast, onMoveUp, onMoveDown, onTest, onDisconnect, busy }) => (
-  <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--background-alt)]/40 px-4 py-3">
-    <div className="flex flex-col gap-0.5">
-      <button
-        type="button"
-        disabled={isFirst || busy}
-        onClick={onMoveUp}
-        className="rounded p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-30"
-        title="Move up (higher priority)"
-      >
-        <ArrowUp className="h-3.5 w-3.5" />
-      </button>
-      <button
-        type="button"
-        disabled={isLast || busy}
-        onClick={onMoveDown}
-        className="rounded p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-30"
-        title="Move down (lower priority)"
-      >
-        <ArrowDown className="h-3.5 w-3.5" />
-      </button>
-    </div>
+// Collapsed by default (just name + status, one line) so a fallback chain
+// of several providers doesn't turn into a tall wall of cards; expanding
+// a row reveals the model, reorder controls, and Test/Remove actions.
+const ConnectedProviderRow = ({ provider, catalogEntry, isFirst, isLast, onMoveUp, onMoveDown, onTest, onDisconnect, busy, expanded, onToggle }) => (
+  <div className="rounded-xl border border-[var(--border)] bg-[var(--background-alt)]/40">
+    <button
+      type="button"
+      onClick={onToggle}
+      className="flex w-full items-center gap-2 px-4 py-2.5 text-left"
+    >
+      <span className="text-sm font-semibold text-[var(--text-primary)]">
+        {catalogEntry?.displayName || provider.provider}
+      </span>
+      <Badge status={STATUS_BADGE[provider.status] || 'neutral'} size="sm">
+        {provider.status}
+      </Badge>
+      <span className="min-w-0 flex-1" />
+      <ChevronDown
+        className={`h-4 w-4 shrink-0 text-[var(--text-muted)] transition-transform ${expanded ? 'rotate-180' : ''}`}
+      />
+    </button>
 
-    <div className="min-w-0 flex-1">
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-[var(--text-primary)]">
-          {catalogEntry?.displayName || provider.provider}
-        </span>
-        <Badge status={STATUS_BADGE[provider.status] || 'neutral'} size="sm">
-          {provider.status}
-        </Badge>
+    {expanded && (
+      <div className="flex items-center gap-3 border-t border-[var(--border)] px-4 py-3">
+        <div className="flex flex-col gap-0.5">
+          <button
+            type="button"
+            disabled={isFirst || busy}
+            onClick={onMoveUp}
+            className="rounded p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-30"
+            title="Move up (higher priority)"
+          >
+            <ArrowUp className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            disabled={isLast || busy}
+            onClick={onMoveDown}
+            className="rounded p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-30"
+            title="Move down (lower priority)"
+          >
+            <ArrowDown className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs text-[var(--text-muted)]">
+            {provider.model}
+            {provider.last_validated_at && ` · validated ${new Date(provider.last_validated_at).toLocaleDateString()}`}
+            {provider.last_error_message && ` · ${provider.last_error_message}`}
+          </p>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button variant="ghost" size="xs" icon={RefreshCw} onClick={onTest} disabled={busy}>
+            Test
+          </Button>
+          <Button variant="dangerGhost" size="xs" icon={Trash2} onClick={onDisconnect} disabled={busy}>
+            Remove
+          </Button>
+        </div>
       </div>
-      <p className="mt-0.5 truncate text-xs text-[var(--text-muted)]">
-        {provider.model}
-        {provider.last_validated_at && ` · validated ${new Date(provider.last_validated_at).toLocaleDateString()}`}
-        {provider.last_error_message && ` · ${provider.last_error_message}`}
-      </p>
-    </div>
-
-    <div className="flex shrink-0 items-center gap-1.5">
-      <Button variant="ghost" size="xs" icon={RefreshCw} onClick={onTest} disabled={busy}>
-        Test
-      </Button>
-      <Button variant="dangerGhost" size="xs" icon={Trash2} onClick={onDisconnect} disabled={busy}>
-        Remove
-      </Button>
-    </div>
+    )}
   </div>
 );
 
@@ -177,7 +193,16 @@ export const AiProvidersPanel = () => {
   const [usage, setUsage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [expandedProvider, setExpandedProvider] = useState(null);
+  // Connected-provider rows collapse to one line by default; this tracks
+  // which single row (if any) is expanded — separate from expandedProvider
+  // above, which is the "Add an AI Provider" connect-form toggle.
+  const [expandedConnectedId, setExpandedConnectedId] = useState(null);
+  // Whole "Add an AI Provider" catalog card collapses too — it's a
+  // set-up-once action, not something worth taking permanent vertical
+  // space once providers are already connected.
+  const [catalogOpen, setCatalogOpen] = useState(false);
   const [busyId, setBusyId] = useState(null);
+  const hasAutoOpenedRef = useRef(false);
 
   const load = useCallback(async () => {
     const [catalogRes, connectedRes, usageRes] = await Promise.allSettled([
@@ -187,6 +212,17 @@ export const AiProvidersPanel = () => {
     if (connectedRes.status === 'fulfilled') setConnected(connectedRes.value);
     if (usageRes.status === 'fulfilled') setUsage(usageRes.value);
     setLoading(false);
+
+    // First load only: open the catalog by default for a brand-new user
+    // with nothing connected yet (there'd be nothing else to look at
+    // otherwise), but never re-force it open/closed on later refreshes
+    // (Test/Remove/reorder) — that would fight the user's own toggle.
+    if (!hasAutoOpenedRef.current) {
+      hasAutoOpenedRef.current = true;
+      if (connectedRes.status === 'fulfilled' && connectedRes.value.length === 0) {
+        setCatalogOpen(true);
+      }
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -290,18 +326,34 @@ export const AiProvidersPanel = () => {
                 onMoveDown={() => handleReorder(index, 1)}
                 onTest={() => handleTest(provider.id)}
                 onDisconnect={() => handleDisconnect(provider.id)}
+                expanded={expandedConnectedId === provider.id}
+                onToggle={() => setExpandedConnectedId((cur) => (cur === provider.id ? null : provider.id))}
               />
             ))}
           </CardBody>
         </Card>
       )}
 
-      {/* Catalog — connect a new provider */}
+      {/* Catalog — connect a new provider. Collapsed by default once at
+          least one provider is already connected (see the auto-open logic
+          in load() above) so this set-up-once list doesn't sit expanded
+          taking space every time the page is visited. */}
       <Card>
         <CardHeader
           title="Add an AI Provider"
           subtitle="Connect your own free-tier API key for unlimited, priority extraction"
+          action={
+            <button
+              type="button"
+              onClick={() => setCatalogOpen((o) => !o)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--background-alt)] hover:text-[var(--text-primary)]"
+              title={catalogOpen ? 'Collapse' : 'Expand'}
+            >
+              <ChevronDown className={`h-4 w-4 transition-transform ${catalogOpen ? 'rotate-180' : ''}`} />
+            </button>
+          }
         />
+        {catalogOpen && (
         <CardBody className="space-y-3">
           {catalog.map((entry) => (
             <div key={entry.id} className="rounded-xl border border-[var(--border)] p-4">
@@ -334,6 +386,7 @@ export const AiProvidersPanel = () => {
             </div>
           ))}
         </CardBody>
+        )}
       </Card>
     </div>
   );

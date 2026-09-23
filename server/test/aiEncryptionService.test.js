@@ -66,6 +66,10 @@ describe('encryption.service', () => {
     expect(() => encryptionService.decrypt('not-a-valid-format')).toThrow('Malformed encrypted credential');
   });
 
+  // AI_CREDENTIAL_ENCRYPTION_KEY is a REQUIRED_VAR in config/env.js (it's
+  // load-bearing for Gmail token storage now, not just BYOK) — an unset or
+  // malformed key now fails loudly at require/boot time via env.js, rather
+  // than lazily the first time something tries to encrypt/decrypt.
   test('throws a clear error when AI_CREDENTIAL_ENCRYPTION_KEY is unset', () => {
     jest.resetModules();
     delete process.env.AI_CREDENTIAL_ENCRYPTION_KEY;
@@ -73,14 +77,22 @@ describe('encryption.service', () => {
     // dev server/.env (which does have this key set for actual BYOK use)
     // and silently defeat the "unset" scenario this test is checking.
     jest.doMock('dotenv', () => ({ config: () => ({}) }));
-    const svc = require('../src/modules/ai-providers/security/encryption.service');
-    expect(() => svc.encrypt('x')).toThrow('AI_CREDENTIAL_ENCRYPTION_KEY is not set');
+    try {
+      expect(() => require('../src/modules/ai-providers/security/encryption.service'))
+        .toThrow('Missing required environment variables: AI_CREDENTIAL_ENCRYPTION_KEY');
+    } finally {
+      // env.js now validates eagerly at require time (see config/env.js),
+      // so leaving the key deleted here would break every later test's
+      // beforeEach (it requires encryption.service fresh on every run).
+      jest.dontMock('dotenv');
+      process.env.AI_CREDENTIAL_ENCRYPTION_KEY = '0'.repeat(64);
+    }
   });
 
   test('throws a clear error when AI_CREDENTIAL_ENCRYPTION_KEY is the wrong length', () => {
     jest.resetModules();
     process.env.AI_CREDENTIAL_ENCRYPTION_KEY = 'deadbeef'; // 4 bytes, not 32
-    const svc = require('../src/modules/ai-providers/security/encryption.service');
-    expect(() => svc.encrypt('x')).toThrow('must be exactly 32 bytes');
+    expect(() => require('../src/modules/ai-providers/security/encryption.service'))
+      .toThrow('AI_CREDENTIAL_ENCRYPTION_KEY must be exactly 64 hex characters');
   });
 });

@@ -1,4 +1,5 @@
 const db = require('../../config/database');
+const { decrypt } = require('../../utils/crypto.util');
 
 const findExistingProcessedEmail = async (messageId, userId) => {
   const [rows] = await db.query(
@@ -130,7 +131,12 @@ const getGmailCredentials = async (userId) => {
     'SELECT gmail_token, refresh_token FROM users WHERE id = ?',
     [userId]
   );
-  return users[0] || null;
+  const row = users[0];
+  if (!row) return null;
+  return {
+    gmail_token: row.gmail_token ? decrypt(row.gmail_token) : null,
+    refresh_token: row.refresh_token ? decrypt(row.refresh_token) : null,
+  };
 };
 
 const getLastHistoryId = async (userId) => {

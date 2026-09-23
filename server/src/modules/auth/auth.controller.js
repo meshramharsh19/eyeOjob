@@ -1,6 +1,9 @@
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const env = require('../../config/env');
 const authService = require('./auth.service');
+const { BadRequestError } = require('../../errors');
+const { createTtlMap } = require('../../utils/ttlMap');
 
 const register = async (req, res) => {
   await authService.register(req.body);
@@ -55,20 +58,44 @@ const resetPassword = async (req, res) => {
   res.json({ message: 'Password reset successfully! You can now login.' });
 };
 
-// Handles the Passport Google OAuth callback (req.user is populated by passport).
+// One-time, short-lived OAuth handoff codes. A real JWT is never put in the
+// redirect URL — putting it there would leave it in browser history, in the
+// Referer header of any third-party resource the next page loads, and in
+// access/CDN logs for its full lifetime. The code below is single-use and
+// expires in seconds, so even if it leaks through one of those channels it's
+// already worthless. See utils/ttlMap.js for the eviction/cluster caveats.
+const oauthHandoffCodes = createTtlMap();
+const OAUTH_CODE_TTL_MS = 60 * 1000;
+
 const googleCallback = (req, res) => {
   const user = req.user;
+  const code = crypto.randomBytes(32).toString('hex');
+  oauthHandoffCodes.set(
+    code,
+    { id: user.id, name: user.name, email: user.email, avatar: user.avatar },
+    Date.now() + OAUTH_CODE_TTL_MS
+  );
+
+  res.redirect(`${env.clientUrl}/auth-success?code=${code}`);
+};
+
+// Exchanges a one-time OAuth handoff code for the actual JWT. Called by the
+// frontend from /auth-success — keeps the real token out of the URL/history.
+const exchangeOAuthCode = async (req, res) => {
+  const { code } = req.body;
+  const user = code ? oauthHandoffCodes.takeIfValid(code) : null;
+
+  if (!user) {
+    throw new BadRequestError('Invalid or expired login code');
+  }
+
   const token = jwt.sign(
     { id: user.id, email: user.email },
     env.jwt.secret,
-    { expiresIn: '7d' }
+    { expiresIn: env.jwt.expiresIn }
   );
 
-  const userData = encodeURIComponent(
-    JSON.stringify({ id: user.id, name: user.name, email: user.email, avatar: user.avatar })
-  );
-
-  res.redirect(`${env.clientUrl}/auth-success?token=${token}&user=${userData}`);
+  res.json({ token, user });
 };
 
 module.exports = {
@@ -83,4 +110,5 @@ module.exports = {
   verifyResetOtp,
   resetPassword,
   googleCallback,
+  exchangeOAuthCode,
 };

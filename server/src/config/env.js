@@ -7,11 +7,23 @@ const REQUIRED_VARS = [
   'DB_NAME',
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
+  // Required at boot, not just lazily on first use, so a misconfigured
+  // deployment fails loudly at startup instead of crashing the first time a
+  // user logs in or an email sync tries to encrypt/decrypt a Gmail token.
+  'AI_CREDENTIAL_ENCRYPTION_KEY',
 ];
 
 const missing = REQUIRED_VARS.filter((key) => !process.env[key]);
 if (missing.length > 0) {
   throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+}
+
+// Buffer.from(str, 'hex') silently drops non-hex characters instead of
+// throwing, so a typo'd key would pass the `missing` check above and only
+// fail (or worse, produce a shorter-than-expected key) deep inside
+// crypto.util.js — validate the exact shape here instead.
+if (!/^[0-9a-fA-F]{64}$/.test(process.env.AI_CREDENTIAL_ENCRYPTION_KEY)) {
+  throw new Error('AI_CREDENTIAL_ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes).');
 }
 
 const parsePositiveInt = (value, fallback) => {

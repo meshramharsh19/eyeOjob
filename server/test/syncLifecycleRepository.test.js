@@ -5,6 +5,7 @@
 jest.mock('../src/config/database', () => ({ query: jest.fn() }));
 
 const db = require('../src/config/database');
+const { encrypt } = require('../src/utils/crypto.util');
 const repository = require('../src/pipelines/email-pipeline/pipeline.repository');
 
 beforeEach(() => {
@@ -117,3 +118,32 @@ describe('getSchedulerEligibleUserIds', () => {
     expect(ids).toEqual([]);
   });
 });
+
+describe('getGmailCredentials', () => {
+  test('decrypts valid AES-256-GCM encrypted tokens from the database', async () => {
+    const encryptedAccess = encrypt('plain-access-token');
+    const encryptedRefresh = encrypt('plain-refresh-token');
+    db.query.mockResolvedValueOnce([[{
+      gmail_token: encryptedAccess,
+      refresh_token: encryptedRefresh,
+    }]]);
+
+    const creds = await repository.getGmailCredentials(42);
+
+    expect(creds).toEqual({
+      gmail_token: 'plain-access-token',
+      refresh_token: 'plain-refresh-token',
+    });
+  });
+
+  test('throws Malformed encrypted credential when encountering a legacy plaintext token', async () => {
+    db.query.mockResolvedValueOnce([[{
+      gmail_token: 'ya29.legacy-plaintext-access-token',
+      refresh_token: '1//legacy-plaintext-refresh-token',
+    }]]);
+
+    await expect(repository.getGmailCredentials(42))
+      .rejects.toThrow('Malformed encrypted credential');
+  });
+});
+

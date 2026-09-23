@@ -6,7 +6,7 @@
 // auto-new instead of committing to the first weak match it finds.
 // ──────────────────────────────────────────────────
 
-const CLOSED_STATUSES = ['Rejected', 'Withdrawn', 'Ghosted', 'Offer'];
+const CLOSED_STATUSES = ['Rejected', 'Withdrawn', 'Ghosted', 'Closed', 'Offer'];
 
 const ROLE_MATCH_SCORE = 40;
 const LOCATION_MATCH_SCORE = 15;

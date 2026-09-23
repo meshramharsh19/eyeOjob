@@ -47,6 +47,13 @@ module.exports = {
     windowMs: minutes(parseIntEnv(process.env.AUTH_RESET_PASSWORD_RATE_WINDOW_MINUTES, 15)),
     max: parseIntEnv(process.env.AUTH_RESET_PASSWORD_RATE_LIMIT, 5),
   },
+  // Separate from `login` so an IP that exhausts password-login attempts
+  // can't also lock itself out of finishing an in-progress Google OAuth
+  // sign-in — the two are unrelated failure modes sharing nothing but an IP.
+  oauthExchange: {
+    windowMs: minutes(parseIntEnv(process.env.AUTH_OAUTH_EXCHANGE_RATE_WINDOW_MINUTES, 15)),
+    max: parseIntEnv(process.env.AUTH_OAUTH_EXCHANGE_RATE_LIMIT, 20),
+  },
 
   // Account-level failed-login counter (layer 2 — closes the IP-rotation gap;
   // see modules/auth/login-failure.repository.js). Keyed by normalized email,
