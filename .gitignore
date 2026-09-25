@@ -57,3 +57,6 @@ uploads/
 
 # Database dumps/backups
 db_backup/
+
+# Deployment docs (contain infra-specific details, not meant for repo history)
+Architecture_designs(LLD)/AZURE_DEPLOY.md

@@ -78,8 +78,16 @@ export const Home = () => {
   const [appToDelete, setAppToDelete] = useState(null);
   const [journeyAppId, setJourneyAppId] = useState(null);
 
-  const loadDashboard = async () => {
-    setLoading(true);
+  // `silent` skips the loading flag entirely — used by the sync-poll interval
+  // below. Without this, every poll tick (every 4s, for as long as the
+  // backend is still working through the email stack / calling the AI
+  // provider) flipped `loading` true→false, which unmounted and remounted
+  // the whole `{!loading && (...)}` dashboard body each time — that's the
+  // "blinking" during a big sync. A silent refresh still updates `data`
+  // (so the UI reflects new emails/applications as they land), it just
+  // doesn't tear the tree down to do it.
+  const loadDashboard = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     setError(null);
 
     const [stats, applications, processedEmails, timelineEvents, syncStatus, roleAliases, self] =
@@ -115,10 +123,12 @@ export const Home = () => {
     loadDashboard();
   }, []);
 
-  // Polling during active sync
+  // Polling during active sync — silent so a sync with many emails (many
+  // AI calls, so 'syncing' persists across dozens of these ticks) doesn't
+  // blink the dashboard body every 4 seconds. See loadDashboard's comment.
   useEffect(() => {
     if (data.syncStatus?.status !== 'syncing') return;
-    const interval = setInterval(loadDashboard, 4000);
+    const interval = setInterval(() => loadDashboard({ silent: true }), 4000);
     return () => clearInterval(interval);
   }, [data.syncStatus?.status]);
 
